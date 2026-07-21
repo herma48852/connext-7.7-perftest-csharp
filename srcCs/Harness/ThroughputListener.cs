@@ -20,7 +20,7 @@ namespace PerformanceTest
         public ulong packetsReceived;
         public ulong bytesReceived;
         public ulong missingPackets;
-        public bool endTest;
+        public volatile bool endTest;
 
         private int currentMessageSize;
         public int lastDataLength = -1;

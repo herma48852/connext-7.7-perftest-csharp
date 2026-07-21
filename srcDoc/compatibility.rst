@@ -75,12 +75,13 @@ releases:
    supported. You can disable this by adding the ``--skip-cs-build``
    flag.
 
-New C# Implementation .NET compatibility
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The C# implementation has been compiled and tested against RTI Perftest .NET 3.1 and above.
-
-Performance testing, feature development and performance data acquisition have been done
-using .NET 5.0.
+C# implementation compatibility
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The C# implementation targets .NET 8 and the modern
+``Rti.Dds``/``Omg.Dds`` APIs from ``Rti.ConnextDds`` 7.7.0. Production builds
+require *RTI Code Generator* 4.7.x from a *Connext Professional* 7.7
+installation. See :ref:`section-csharp-7-7` for its feature scope and validation
+workflow.
 
 Using the Old C# Implementation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

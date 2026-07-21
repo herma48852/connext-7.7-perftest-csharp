@@ -35,8 +35,10 @@ if you downloaded the executables already compiled, you can skip these steps:
 
 ..
 
--  If you are building for the C# API implementation, the *RTI Connext* dotnet
-   package should be installed.
+-  The C# implementation requires the .NET 8 SDK and *RTI Connext Professional*
+   7.7 host tools. The build restores ``Rti.ConnextDds`` 7.7.0 and
+   ``System.CommandLine`` 2.0.10 from NuGet and uses *Code Generator* 4.7.x to
+   generate the IDL types.
 
 ..
 
@@ -340,6 +342,13 @@ examples:
 
        ./build.sh --cs-build
 
+   The C# project can also be built directly. ``NDDSHOME`` must identify the
+   *Connext Professional* 7.7 installation:
+
+   .. code-block:: console
+
+       dotnet build srcCs/rtiperftest.csproj --configuration Release
+
 -  Generation and compilation for a given architecture
    (``x64Darwin15clang7.0``) for all supported languages, plus linking
    against the dynamic and debug libraries.
@@ -473,8 +482,10 @@ Windows Prerequisites
 
 ..
 
--  If you are building for the C# API implementation, the *Connext* dotnet
-   package should be installed.
+-  The C# implementation requires the .NET 8 SDK and *RTI Connext Professional*
+   7.7 host tools. The build restores ``Rti.ConnextDds`` 7.7.0 and
+   ``System.CommandLine`` 2.0.10 from NuGet and uses *Code Generator* 4.7.x to
+   generate the IDL types.
 
 ..
 

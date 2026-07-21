@@ -57,7 +57,7 @@ namespace PerformanceTest
 
         public ITypeHelper<TestDataKeyed_t> Clone()
         {
-            return new DataTypeKeyedHelper(dataSample, maxPerftestSampleSize);
+            return new DataTypeKeyedHelper(maxPerftestSampleSize);
         }
 
         public long GetSerializedOverheadSize()

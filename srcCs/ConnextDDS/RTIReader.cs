@@ -29,7 +29,9 @@ namespace PerformanceTest
             {
                 WaitSetProperty property = new WaitSetProperty(
                         (int) arguments.WaitsetEventCount,
-                        Duration.FromMilliseconds(arguments.WaitsetDelayUsec / 1000));
+                        new Duration(
+                            (int)(arguments.WaitsetDelayUsec / 1_000_000),
+                            (arguments.WaitsetDelayUsec % 1_000_000) * 1_000));
 
                 waitset = new WaitSet(property);
                 StatusCondition readerStatus = reader.StatusCondition;
@@ -52,12 +54,17 @@ namespace PerformanceTest
             }
         }
 
-        public void WaitForWriters(int numPublishers)
+        public bool WaitForWriters(int numPublishers)
         {
             while (reader.MatchedPublications.Count() < numPublishers)
             {
+                if (Perftest.TestCompleted)
+                {
+                    return false;
+                }
                 System.Threading.Thread.Sleep(100);
             }
+            return true;
         }
     } // RTISubscriber
 } // namespace PerformanceTest

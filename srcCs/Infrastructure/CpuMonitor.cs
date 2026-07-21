@@ -83,7 +83,7 @@ namespace PerformanceTest
         {
             // Check if at least 1/4 of a second passed since last update.
             // This will make the measurements more accurate.
-            return (DateTime.Now - startTime).TotalMilliseconds > 250;
+            return (DateTime.UtcNow - startTime).TotalMilliseconds > 250;
         }
     }
 }

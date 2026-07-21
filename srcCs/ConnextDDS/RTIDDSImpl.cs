@@ -24,12 +24,11 @@ namespace PerformanceTest
         private const int RTIPERFTEST_MAX_PEERS = 1024;
         private Parameters parameters;
         private int instanceMaxCountReader = -1;
-        private readonly bool directCommunication = true;
+        private bool directCommunication = true;
         private bool isLargeData;
         private ulong maxUnfragmentedRTPSPayloadSize = PerftestTransport.MessageSizeMaxNotSet;
         private readonly string[] validFlowController = { "default", "1Gbps", "10Gbps" };
-        private int peerHostCount = 0;
-        private readonly string[] peerHostArray = new string[RTIPERFTEST_MAX_PEERS];
+        private readonly List<string> peerHosts = new List<string>();
         private readonly int[] cftRange = { 0, 0 };
         private readonly PerftestTransport transport = new PerftestTransport();
 
@@ -51,6 +50,9 @@ namespace PerformanceTest
         private Publisher publisher;
         private readonly ITypeHelper<T> dataTypeHelper;
         private Semaphore pongSemaphore;
+        private QosProvider qosProvider;
+        private readonly object lifecycleLock = new object();
+        private bool disposed;
         private readonly SortedDictionary<string, string> qosProfileNameMap = new SortedDictionary<string, string>();
         public int BatchSize { get; set; }
         public int InitialBurstSampleCount { get; set; }
@@ -68,24 +70,26 @@ namespace PerformanceTest
 
         public void Dispose()
         {
-            if (participant != null)
-            {
-                lock (participant)
-                {
-                    participant.Dispose();
-                }
-            }
+            Shutdown();
             GC.SuppressFinalize(this);
         }
 
         public void Shutdown()
         {
-            if (participant != null)
+            lock (lifecycleLock)
             {
-                lock (participant)
+                if (disposed)
                 {
-                    participant.Dispose();
+                    return;
                 }
+
+                disposed = true;
+                participant?.Dispose();
+                participant = null;
+                publisher = null;
+                subscriber = null;
+                pongSemaphore?.Dispose();
+                pongSemaphore = null;
             }
         }
 
@@ -101,8 +105,13 @@ namespace PerformanceTest
             string pingProfile = parameters.QosLibrary + "::ThroughputQos";
             string pongProfile = parameters.QosLibrary + "::ThroughputQos";
 
-            var qosProvider = new QosProvider(parameters.QosFile);
+            qosProvider = new QosProvider(parameters.QosFile);
             var participantQos = GetParticipantQos(baseProfile);
+            if (participantQos == null)
+            {
+                Console.Error.WriteLine("Problem creating participant QoS.");
+                return false;
+            }
 
             if (parameters.LatencyTest)
             {
@@ -115,7 +124,10 @@ namespace PerformanceTest
                     Console.Error.WriteLine("Failure validating arguments");
                     return false;
                 }
-                ConfigureSecurePlugin(ref participantQos);
+                if (!ConfigureSecurePlugin(ref participantQos))
+                {
+                    return false;
+                }
             }
 
             participant = DomainParticipantFactory.Instance.CreateParticipant(parameters.Domain, participantQos);
@@ -163,9 +175,13 @@ namespace PerformanceTest
              */
             if (BatchSize > 0)
             {
-                initializeSampleCount = Math.Max(
-                        (int)parameters.SendQueueSize * ((int)BatchSize / (int)parameters.DataLen),
-                        initializeSampleCount);
+                long samplesPerBatch = Math.Max(
+                    1L,
+                    BatchSize / (long)parameters.DataLen);
+                long batchedSampleCount = parameters.SendQueueSize * samplesPerBatch;
+                initializeSampleCount = (int)Math.Min(
+                    int.MaxValue,
+                    Math.Max(batchedSampleCount, initializeSampleCount));
             }
 
             return initializeSampleCount;
@@ -216,9 +232,11 @@ namespace PerformanceTest
                     }
                 }
             }
-            if (parameters.PubRateSet && parameters.BatchSizeSet)
+            if (parameters.PubRateSet
+                && parameters.BatchSizeSet
+                && parameters.BatchSize > 0)
             {
-                parameters.batchSize = -3;
+                parameters.batchSize = -4;
             }
 
             if (parameters.EnableTurboMode)
@@ -299,13 +317,13 @@ namespace PerformanceTest
             sb.Append(transport.PrintTransportConfigurationSummary());
 
             // set initial peers and not use multicast
-            if (peerHostCount > 0)
+            if (peerHosts.Count > 0)
             {
                 sb.Append("Initial peers: ");
-                for (int i = 0; i < peerHostCount; ++i)
+                for (int i = 0; i < peerHosts.Count; ++i)
                 {
-                    sb.Append(peerHostArray[i]);
-                    if (i == peerHostCount - 1)
+                    sb.Append(peerHosts[i]);
+                    if (i == peerHosts.Count - 1)
                     {
                         sb.Append('\n');
                     }
@@ -383,25 +401,28 @@ namespace PerformanceTest
             // set by user
             // IsBatchSizeProvided = true;
 
+            if (parameters.BatchSizeSet && parameters.BatchSize < 0)
+            {
+                Console.Error.WriteLine(
+                    "Batch size '" + parameters.BatchSize
+                    + "' should be greater than, or equal to, 0.");
+                return false;
+            }
+
             if (!parameters.BatchSizeSet)
             {
                 parameters.batchSize = (int)DEFAULT_THROUGHPUT_BATCH_SIZE.Value;
-
-                if(parameters.BatchSize < 0)
-                {
-                    Console.Error.Write("Batch size '" + parameters.BatchSize +
-                                "' should be greater than, or equal to, 0\n");
-                    return false;
-                }
             }
 
             // Verify if the flow controller name is correct, else use "default"
             bool validFlowControl = false;
             foreach (string flow in validFlowController)
             {
-                if (parameters.FlowController.Equals(flow))
+                if (string.Equals(parameters.FlowController, flow, StringComparison.OrdinalIgnoreCase))
                 {
                     validFlowControl = true;
+                    parameters.FlowController = flow;
+                    break;
                 }
             }
 
@@ -411,18 +432,26 @@ namespace PerformanceTest
                 parameters.FlowController = "default";
             }
 
+            peerHosts.Clear();
             if (parameters.PeerSet)
             {
-                if (peerHostCount + 1 < RTIPERFTEST_MAX_PEERS)
+                if (parameters.Peers.Length > RTIPERFTEST_MAX_PEERS)
                 {
-                    peerHostArray[peerHostCount++] = parameters.Peer;
-                }
-                else
-                {
-                    Console.Error.Write("The maximum of -initial peers is " + RTIPERFTEST_MAX_PEERS + "\n");
+                    Console.Error.Write("The maximum number of initial peers is "
+                        + RTIPERFTEST_MAX_PEERS + "\n");
                     return false;
                 }
+
+                foreach (string peer in parameters.Peers)
+                {
+                    if (!string.IsNullOrWhiteSpace(peer))
+                    {
+                        peerHosts.Add(peer);
+                    }
+                }
             }
+
+            directCommunication = !parameters.NoDirectCommunication;
 
             if (parameters.CftSet)
             {
@@ -507,7 +536,10 @@ namespace PerformanceTest
                 || !string.IsNullOrEmpty(parameters.SecureCertAuthority)
                 || !string.IsNullOrEmpty(parameters.SecureCertFile)
                 || !string.IsNullOrEmpty(parameters.SecurePrivateKey)
-                || !string.IsNullOrEmpty(parameters.SecureLibrary))
+                || !string.IsNullOrEmpty(parameters.SecureLibrary)
+                || !string.IsNullOrEmpty(parameters.SecurePSK)
+                || parameters.SecureEnableAAD
+                || parameters.LightWeightSecurity)
             {
                 SecureUseSecure = true;
             }
@@ -548,10 +580,13 @@ namespace PerformanceTest
             // Manage parameters.WriteInstance
             if (parameters.WriteInstance != -1)
             {
-                if (parameters.Instances < parameters.WriteInstance)
+                if (parameters.WriteInstance < 0
+                    || parameters.WriteInstance >= parameters.Instances)
                 {
-                    Console.Error.WriteLine("Specified '-WriteInstance' (" + parameters.WriteInstance +
-                            ") invalid: Bigger than the number of instances (" + parameters.WriteInstance + ").");
+                    Console.Error.WriteLine(
+                        "Specified '-writeInstance' (" + parameters.WriteInstance
+                        + ") is outside the valid range [0, "
+                        + (parameters.Instances - 1) + "].");
                     return false;
                 }
             }
@@ -727,7 +762,7 @@ namespace PerformanceTest
             return secureArgumentsString;
         }
 
-        private void ConfigureSecurePlugin(ref DomainParticipantQos dpQos)
+        private bool ConfigureSecurePlugin(ref DomainParticipantQos dpQos)
         {
             // configure use of security plugins, based on provided arguments
 
@@ -763,7 +798,7 @@ namespace PerformanceTest
                 else
                 {
                     Console.Error.WriteLine("SecureGovernanceFile is required when using security.");
-                    return;
+                    return false;
                 }
 
                 // permissions file
@@ -845,6 +880,8 @@ namespace PerformanceTest
                     policy.Add("com.rti.serv.secure.logging.log_level",
                     parameters.SecureDebug.ToString()));
             }
+
+            return true;
         }
 
         public IMessagingWriter CreateWriter(string topicName)
@@ -939,6 +976,7 @@ namespace PerformanceTest
         public IMessagingReader CreateReader(string topicName, IMessagingCallback callback)
         {
             DataReader<T> reader = null;
+            ITypeHelper<T> readerTypeHelper = dataTypeHelper.Clone();
 
             if (parameters.CftSet && topicName == THROUGHPUT_TOPIC_NAME.Value)
             {
@@ -966,7 +1004,7 @@ namespace PerformanceTest
                     {
                         if (sample.Info.ValidData)
                         {
-                            callback.ProcessMessage(dataTypeHelper.SampleToMessage(sample.Data));
+                            callback.ProcessMessage(readerTypeHelper.SampleToMessage(sample.Data));
                         }
                     }
                 };
@@ -978,23 +1016,21 @@ namespace PerformanceTest
             }
             return new RTIReader<T>(
                     reader,
-                    dataTypeHelper.Clone(),
+                    readerTypeHelper,
                     parameters);
         }
 
         private DomainParticipantQos GetParticipantQos(string profile)
         {
-            var qosProvider = new QosProvider(parameters.QosFile);
             var participantQos = qosProvider.GetDomainParticipantQos(profile);
 
             // set initial peers and not use multicast
-            if (peerHostCount > 0)
+            if (peerHosts.Count > 0)
             {
                 participantQos = participantQos.WithDiscovery(policy =>
                 {
-                    policy.InitialPeers.InsertRange(0, peerHostArray);
+                    policy.InitialPeers.InsertRange(0, peerHosts);
                     policy.MulticastReceiveAddresses.Clear();
-                    // qos.discovery.multicast_receive_addresses = new DDS.StringSeq();
                 });
             }
 
@@ -1044,8 +1080,6 @@ namespace PerformanceTest
         private DataReaderQos GetReaderQos(string topicName)
         {
             string qosProfile = parameters.QosLibrary + "::" + GetQoSProfileName(topicName);
-            var qosProvider = new QosProvider(parameters.QosFile);
-
             DataReaderQos dataReaderQos = qosProvider.GetDataReaderQos(qosProfile);
 
             // only force reliability on throughput/latency topics
@@ -1077,7 +1111,7 @@ namespace PerformanceTest
                         && ((DurabilityKind) parameters.Durability == DurabilityKind.Transient
                             || (DurabilityKind) parameters.Durability == DurabilityKind.Persistent)))
             {
-                dataReaderQos = dataReaderQos = dataReaderQos.WithDurability(policy =>
+                dataReaderQos = dataReaderQos.WithDurability(policy =>
                 {
                     policy.Kind = (DurabilityKind) parameters.Durability;
                     policy.DirectCommunication = directCommunication;
@@ -1086,13 +1120,10 @@ namespace PerformanceTest
 
             dataReaderQos = dataReaderQos.WithResourceLimits(policy =>
                 policy.InitialInstances = (int)(parameters.Instances + 1));
-            if (instanceMaxCountReader != -1)
-            {
-                instanceMaxCountReader++;
-            }
-
             dataReaderQos = dataReaderQos.WithResourceLimits(policy =>
-                policy.MaxInstances = instanceMaxCountReader);
+                policy.MaxInstances = instanceMaxCountReader == -1
+                    ? -1
+                    : instanceMaxCountReader + 1);
 
             if (parameters.Instances > 1)
             {
@@ -1146,13 +1177,11 @@ namespace PerformanceTest
         {
             string qosProfile = parameters.QosLibrary + "::" + GetQoSProfileName(topicName);
 
-            var qosProvider = new QosProvider(parameters.QosFile);
-
             DataWriterQos dataWriterQos = qosProvider.GetDataWriterQos(qosProfile);
 
             if (parameters.NoPositiveAcks
-                    && (qosProfile == "PerftestQosLibrary::ThroughputQos"
-                        || qosProfile == "PerftestQosLibrary::LatencyQos"))
+                    && (topicName == THROUGHPUT_TOPIC_NAME.Value
+                        || topicName == LATENCY_TOPIC_NAME.Value))
             {
                 dataWriterQos = dataWriterQos.WithProtocol(policy =>
                 {
@@ -1160,7 +1189,9 @@ namespace PerformanceTest
                     if (parameters.KeepDurationUsec != -1)
                     {
                         policy.RtpsReliableWriter.DisablePositiveAcksMinSampleKeepDuration =
-                            Duration.FromMilliseconds((ulong)parameters.KeepDurationUsec / 1000);
+                            new Duration(
+                                (int)(parameters.KeepDurationUsec / 1_000_000),
+                                (uint)((parameters.KeepDurationUsec % 1_000_000) * 1_000));
                     }
                 });
             }

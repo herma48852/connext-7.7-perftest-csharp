@@ -810,35 +810,9 @@ echo[
 ::------------------------------------------------------------------------------
 
 if %BUILD_CS% == 1 (
-
-	set "additional_defines_rtiddsgen=-D "PERFTEST_RTI_PRO""
-
-	@REM Generate files for srcCs
-	echo[
-	echo [INFO]: Generating types for %cs_lang_string%
-	md "%cs_folder%\ConnextDDS\GeneratedCode"
-	call "%rtiddsgen_executable%" -language %cs_lang_string% -unboundedSupport -replace^
-	!additional_defines_rtiddsgen! -d "%cs_folder%\ConnextDDS\GeneratedCode" "%idl_location%\perftest.idl"
-	if not !ERRORLEVEL! == 0 (
-		echo [ERROR]: Failure generating code for %cs_lang_string%.
-		exit /b 1
-	)
-
-	@REM Generate files for srcCs
-	echo[
-	echo [INFO]: Generating projects for %cs_lang_string%
-	call "%rtiddsgen_executable%" -language %cs_lang_string% -unboundedSupport -replace -platform !architecture_cs!^
-	-update makefiles !additional_defines_rtiddsgen! -d "%cs_folder%" "%idl_location%\perftest.idl"
-	if not !ERRORLEVEL! == 0 (
-		echo [ERROR]: Failure generating code for %cs_lang_string%.
-		exit /b 1
-	)
-	del "%cs_folder%\README*"
-
-	@REM Generate files for srcCs
 	echo[
 	echo [INFO]: Compiling dotnet projects for %cs_lang_string%
-	call dotnet build --configuration %RELEASE_DEBUG% %cs_folder%
+	call dotnet build --configuration %RELEASE_DEBUG% "%cs_folder%\rtiperftest.csproj" -p:RtiCodeGenExe="%rtiddsgen_executable%"
 	if not !ERRORLEVEL! == 0 (
 		echo [ERROR]: Failure executing dotnet build %cs_lang_string%.
 		exit /b 1
@@ -847,13 +821,13 @@ if %BUILD_CS% == 1 (
 	echo [INFO]: Copying files
 	md "%bin_folder%"\!RELEASE_DEBUG!
 	copy "%cs_scripts_folder%"\perftest_cs.bat "%bin_folder%"\!RELEASE_DEBUG!\perftest_cs.bat
-	echo dotnet run -p %cs_folder% --configuration %RELEASE_DEBUG% -- %%args%% >> "%bin_folder%"\!RELEASE_DEBUG!\perftest_cs.bat
+	echo dotnet run --project "%cs_folder%\rtiperftest.csproj" --no-build --configuration %RELEASE_DEBUG% -- %%args%% >> "%bin_folder%"\!RELEASE_DEBUG!\perftest_cs.bat
 	echo :endscript >> "%bin_folder%"\!RELEASE_DEBUG!\perftest_cs.bat
 
 	echo[
 	echo [INFO]: You can run the dotnet project by executing the following command:
 	echo[
-	echo "dotnet run -p %cs_folder% --configuration %RELEASE_DEBUG% -- <arguments>"
+	echo "dotnet run --project %cs_folder%\rtiperftest.csproj --configuration %RELEASE_DEBUG% -- <arguments>"
 	echo[
 	echo [INFO]: Alternatively, the following script can be executed:
 	echo[

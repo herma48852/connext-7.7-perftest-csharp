@@ -446,6 +446,7 @@ namespace PerformanceTest
             double missingPacketsPercent,
             double outputCpu)
         {
+            ulong safeIntervalTime = Math.Max(intervalTime, 1UL);
             switch (outputFormat)
             {
                 case PerftestOutputFormat.CSV:
@@ -474,9 +475,9 @@ namespace PerformanceTest
                                   length,
                                   intervalPacketsReceived,
                                   intervalPacketsReceived * 1000000
-                                         / intervalTime,
+                                         / safeIntervalTime,
                                   intervalBytesReceived * 1000000.0
-                                         / intervalTime * 8.0 / 1000.0 / 1000.0,
+                                         / safeIntervalTime * 8.0 / 1000.0 / 1000.0,
                                   intervalMissingPackets,
                                   missingPacketsPercent);
                     if (showCPU)
@@ -499,9 +500,9 @@ namespace PerformanceTest
                                   "\t\t\t\t\"lostPercent\": {4:F2}",
                                   intervalPacketsReceived,
                                   intervalPacketsReceived * 1000000
-                                         / intervalTime,
+                                         / safeIntervalTime,
                                   intervalBytesReceived * 1000000.0
-                                         / intervalTime * 8.0 / 1000.0 / 1000.0,
+                                         / safeIntervalTime * 8.0 / 1000.0 / 1000.0,
                                   intervalMissingPackets,
                                   missingPacketsPercent);
                     if (showCPU)
@@ -517,9 +518,9 @@ namespace PerformanceTest
                                   length,
                                   intervalPacketsReceived,
                                   intervalPacketsReceived * 1000000
-                                         / intervalTime,
+                                         / safeIntervalTime,
                                   intervalBytesReceived * 1000000.0
-                                         / intervalTime * 8.0 / 1000.0 / 1000.0,
+                                         / safeIntervalTime * 8.0 / 1000.0 / 1000.0,
                                   intervalMissingPackets,
                                   missingPacketsPercent);
                     if (showCPU)

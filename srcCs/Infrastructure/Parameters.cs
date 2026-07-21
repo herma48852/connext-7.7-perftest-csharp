@@ -37,6 +37,7 @@ namespace PerformanceTest
         public bool InstanceHashBucketsSet { get; set; }
         public bool DataLenSet { get; set; }
         public bool NumIterSet { get; set; }
+        public bool LatencyCountSet { get; set; }
         public bool BatchSizeSet { get; set; }
         public bool PeerSet { get; set; }
         public bool TransportSet { get; set; }
@@ -53,6 +54,8 @@ namespace PerformanceTest
         public bool ConfigureTransportCertFileSet { get; set; }
         public bool ConfigureTransportPrivateKeySet { get; set; }
         public bool VerbositySet { get; set; }
+        public bool PubSet { get; set; }
+        public bool SubSet { get; set; }
         public bool Pub { get; set; }
         public bool Sub { get; set; }
         public int SidMultiSubTest { get; set; }
@@ -60,13 +63,13 @@ namespace PerformanceTest
         public ulong DataLen
         {
                 get => dataLen;
-                set { dataLen = value; DataLenSet = true; }
+                set => dataLen = value;
         }
-        public ulong NumIter { get => numIter; set { numIter = value; NumIterSet = true; } }
+        public ulong NumIter { get => numIter; set => numIter = value; }
         public uint Instances
         {
                 get => instances;
-                set { instances = value; InstancesSet = true; }
+                set => instances = value;
         }
         public int WriteInstance { get; set; }
         public uint Sleep { get; set; }
@@ -78,17 +81,17 @@ namespace PerformanceTest
         public bool LatencyTest
         {
                 get => latencyTest;
-                set { latencyTest = value; LatencyCount = 1; }
+                set => latencyTest = value;
         }
         public int Verbosity
         {
                 get => verbosity;
-                set { verbosity = value; VerbositySet = true; }
+                set => verbosity = value;
         }
         public string PubRate
         {
                 get => pubRate;
-                set { pubRate = value; PubRateSet = true; }
+                set => pubRate = value;
         }
         public bool Keyed { get; set; }
         public ulong ExecutionTime { get; set; }
@@ -97,7 +100,7 @@ namespace PerformanceTest
         public string Cft
         {
                 get => cft;
-                set { cft = value; CftSet = true; }
+                set => cft = value;
         }
         public bool NoOutputHeaders { get; set; }
         public string OutputFormat { get; set; }
@@ -108,7 +111,7 @@ namespace PerformanceTest
         public int BatchSize
         {
             get => batchSize;
-            set { batchSize = value; BatchSizeSet = true; }
+            set => batchSize = value;
         }
         public bool NoPositiveAcks { get; set; }
         public long KeepDurationUsec { get; set; }
@@ -127,29 +130,30 @@ namespace PerformanceTest
         public string Peer
         {
             get => peer;
-            set { peer = value; PeerSet = true; }
+            set => peer = value;
         }
+        public string[] Peers { get; set; } = System.Array.Empty<string>();
         public bool Unbounded { get; set; }
         public ulong UnboundedSize
         {
             get => unboundedSize;
-            set { unboundedSize = value; UnboundedSizeSet = true; }
+            set => unboundedSize = value;
         }
         public ulong MessageSizeMax
         {
             get => messageSizeMax;
-            set { messageSizeMax = value; messageSizeMaxSet = true; }
+            set => messageSizeMax = value;
         }
         public int Domain { get; set; }
         public string Transport
         {
             get => transport;
-            set { transport = value; TransportSet = true; }
+            set => transport = value;
         }
         public int InstanceHashBuckets
         {
             get => instanceHashBuckets;
-            set { instanceHashBuckets = value; InstanceHashBucketsSet = false; }
+            set => instanceHashBuckets = value;
         }
         public string SecureGovernanceFile { get; set; }
         public string SecurePermissionsFile { get; set; }
@@ -170,62 +174,62 @@ namespace PerformanceTest
         public string Nic
         {
                 get => allowInterfaces;
-                set { allowInterfaces = value; AllowInterfacesSet = true; }
+                set => allowInterfaces = value;
         }
         public string AllowInterfaces
         {
                 get => allowInterfaces;
-                set { allowInterfaces = value; AllowInterfacesSet = true; }
+                set => allowInterfaces = value;
         }
         public string ConfigureTransportVerbosity
         {
             get => configureTransportVerbosity;
-            set { configureTransportVerbosity = value; ConfigureTransportVerbositySet = true; }
+            set => configureTransportVerbosity = value;
         }
         public string ConfigureTransportServerBindPort { get; set; }
         public bool ConfigureTransportWan { get; set; }
         public string ConfigureTransportPublicAddress
         {
             get => configureTransportPublicAddress;
-            set { configureTransportPublicAddress = value; ConfigureTransportPublicAddressSet = true; }
+            set => configureTransportPublicAddress = value;
         }
         public string ConfigureTransportCertAuthority
         {
             get => configureTransportCertAuthority;
-            set { configureTransportCertAuthority = value; ConfigureTransportCertAuthoritySet = true; }
+            set => configureTransportCertAuthority = value;
         }
         public string ConfigureTransportCertFile
         {
             get => configureTransportCertFile;
-            set { configureTransportCertFile = value; ConfigureTransportCertFileSet = true; }
+            set => configureTransportCertFile = value;
         }
         public string ConfigureTransportPrivateKey
         {
             get => configureTransportPrivateKey;
-            set { configureTransportPrivateKey = value; ConfigureTransportPrivateKeySet = true; }
+            set => configureTransportPrivateKey = value;
         }
         public string ConfigureTransportWanServerAddress
         {
             get => configureTransportWanServerAddress;
-            set { configureTransportWanServerAddress = value; ConfigureTransportWanServerAddressSet = true; }
+            set => configureTransportWanServerAddress = value;
         }
         public string ConfigureTransportWanServerPort { get; set; }
         public string ConfigureTransportWanId
         {
             get => configureTransportWanId;
-            set { configureTransportWanId = value; ConfigureTransportWanIdSet = true; }
+            set => configureTransportWanId = value;
         }
         public bool ConfigureTransportSecureWan { get; set; }
         public bool Multicast { get; set; }
         public string MulticastAddr
         {
             get => multicastAddr;
-            set { multicastAddr = value; MulticastAddrSet = true; }
+            set => multicastAddr = value;
         }
         public bool NoMulticast
         {
             get => noMulticast;
-            set { noMulticast = value; NoMulticastSet = true; }
+            set => noMulticast = value;
         }
     }
 }

@@ -1,0 +1,70 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>perftest_cs</AssemblyName>
+    <RootNamespace>PerformanceTest</RootNamespace>
+
+    <PerftestIdl>$(MSBuildProjectDirectory)/../srcIdl/perftest.idl</PerftestIdl>
+    <!-- IntermediateOutputPath is assigned after this project file is evaluated.
+         Build the path from properties that are already available here so generated
+         sources never land under srcCs or get picked up by the SDK compile glob. -->
+    <ConnextGeneratedDir>$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/ConnextGenerated</ConnextGeneratedDir>
+    <ConnextGeneratedStamp>$(ConnextGeneratedDir)/perftest.codegen.stamp</ConnextGeneratedStamp>
+    <RtiCodeGenExe Condition="'$(RtiCodeGenExe)' == '' and '$(OS)' == 'Windows_NT' and '$(NDDSHOME)' != ''">$(NDDSHOME)/bin/rtiddsgen.bat</RtiCodeGenExe>
+    <RtiCodeGenExe Condition="'$(RtiCodeGenExe)' == '' and '$(NDDSHOME)' != ''">$(NDDSHOME)/bin/rtiddsgen</RtiCodeGenExe>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Rti.ConnextDds" Version="7.7.0" />
+    <PackageReference Include="System.CommandLine" Version="2.0.10" />
+
+    <None Include="../perftest_qos_profiles.xml"
+          Link="perftest_qos_profiles.xml"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Include="../resource/secure/*.pem;../resource/secure/signed_*.xml"
+          Link="resource/secure/%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="ValidateConnextCodeGenerator"
+          BeforeTargets="GenerateConnextTypes">
+    <Error Condition="'$(RtiCodeGenExe)' == ''"
+           Text="Set NDDSHOME to an RTI Connext Professional 7.7 installation or pass -p:RtiCodeGenExe=/path/to/rtiddsgen." />
+    <Error Condition="!Exists('$(RtiCodeGenExe)')"
+           Text="RTI Code Generator was not found at '$(RtiCodeGenExe)'. Install Connext Professional 7.7 host tools or set RtiCodeGenExe." />
+    <Exec Command="&quot;$(RtiCodeGenExe)&quot; -version"
+          ConsoleToMSBuild="true"
+          StandardOutputImportance="Low">
+      <Output TaskParameter="ConsoleOutput" ItemName="RtiCodeGenVersionOutput" />
+    </Exec>
+    <PropertyGroup>
+      <RtiCodeGenVersionText>@(RtiCodeGenVersionOutput, ' ')</RtiCodeGenVersionText>
+    </PropertyGroup>
+    <Error Condition="$([System.String]::Copy('$(RtiCodeGenVersionText)').Contains('4.7.')) != 'True'"
+           Text="Connext 7.7 requires RTI Code Generator 4.7.x. Detected: $(RtiCodeGenVersionText)" />
+  </Target>
+
+  <Target Name="GenerateConnextTypes"
+          BeforeTargets="CoreCompile"
+          Inputs="$(PerftestIdl);$(MSBuildProjectFullPath)"
+          Outputs="$(ConnextGeneratedStamp)">
+    <MakeDir Directories="$(ConnextGeneratedDir)" />
+    <Exec Command="&quot;$(RtiCodeGenExe)&quot; -language C# -D PERFTEST_RTI_PRO -unboundedSupport -replace -d &quot;$(ConnextGeneratedDir)&quot; &quot;$(PerftestIdl)&quot;" />
+    <Touch Files="$(ConnextGeneratedStamp)" AlwaysCreate="true" />
+  </Target>
+
+  <Target Name="IncludeConnextGeneratedSources"
+          BeforeTargets="CoreCompile"
+          DependsOnTargets="GenerateConnextTypes">
+    <ItemGroup>
+      <Compile Include="$(ConnextGeneratedDir)/**/*.cs" />
+    </ItemGroup>
+  </Target>
+</Project>

@@ -262,11 +262,12 @@ function clean()
     rm -rf "${script_location}"/srcC*/objs
     rm -f  "${script_location}"/srcC*/*.vcxproj*
     rm -f  "${script_location}"/srcC*/*.vcproj*
-    rm -f  "${script_location}"/srcC*/*.csproj
     rm -f  "${script_location}"/srcC*/*.sln
     rm -f  "${script_location}"/srcC*/*.sdf
     rm -f  "${script_location}"/srcC*/perftestImplPlugin.*
     rm -f  "${script_location}"/srcC*/perftestImpl.*
+    rm -rf "${script_location}/srcCs/bin"
+    rm -rf "${script_location}/srcCs/obj"
     rm -rf "${script_location}"/srcJava/class
     rm -rf "${script_location}"/srcJava/jar
     rm -rf "${script_location}"/srcJava/com/rti/perftest/gen
@@ -405,8 +406,8 @@ function executable_checking()
 
 
         if [ "${BUILD_CS}" -eq "1" ]; then
-            if [ -z `which dotnet` ]; then
-                echo -e "${YELLOW}[WARNING]:${NC} dotnet executable not found, perftest_java will not be built."
+            if ! command -v dotnet >/dev/null 2>&1; then
+                echo -e "${WARNING_TAG} dotnet executable not found, perftest_cs will not be built."
                 BUILD_CS=0
             fi
         fi
@@ -1885,46 +1886,20 @@ function build_cs()
         echo -e "${INFO_TAG} Compiling in release mode."
     fi
 
-    ##############################################################################
-    # Generate files for srcJava
-    mkdir -p "${cs_folder}/ConnextDDS/GeneratedCode"
-    rtiddsgen_command="\"${rtiddsgen_executable}\" -D PERFTEST_RTI_PRO -replace -language ${cs_lang_string} -unboundedSupport -d \"${cs_folder}/ConnextDDS/GeneratedCode\" \"${idl_location}/perftest.idl\""
-
-    echo ""
-    echo -e "${INFO_TAG} Generating types for ${cs_lang_string}."
-    echo -e "${INFO_TAG} Command: $rtiddsgen_command"
-
-    # Executing RTIDDSGEN command here.
-    eval $rtiddsgen_command
-    if [ "$?" != 0 ]; then
-        echo -e "${ERROR_TAG} Failure generating code for ${cs_lang_string}."
-        exit -1
-    fi
-
-    ##############################################################################
-    # Generate Files to compile
-
-    rtiddsgen_command="\"${rtiddsgen_executable}\" -D PERFTEST_RTI_PRO -replace -language ${cs_lang_string} -platform ${platform_cs} -update makefiles -unboundedSupport -d \"${cs_folder}\" \"${idl_location}/perftest.idl\""
-
-    echo ""
-    echo -e "${INFO_TAG} Generating .net solution for ${cs_lang_string}."
-    echo -e "${INFO_TAG} Command: $rtiddsgen_command"
-
-    # Executing RTIDDSGEN command here.
-    eval $rtiddsgen_command
-    if [ "$?" != 0 ]; then
-        echo -e "${ERROR_TAG} Failure generating .net solution for ${cs_lang_string}."
-        exit -1
-    fi
-    rm ${cs_folder}/README_${platform}.txt
-
-    export dotnet_command="dotnet build --configuration ${RELEASE_DEBUG} \"${cs_folder}\""
+    dotnet_command=(
+        dotnet build
+        --configuration "${RELEASE_DEBUG}"
+        "${cs_folder}/rtiperftest.csproj"
+        "-p:RtiCodeGenExe=${rtiddsgen_executable}"
+    )
 
     echo ""
     echo -e "${INFO_TAG} Compiling for dotnet"
-    echo -e "${INFO_TAG} Command: $dotnet_command"
+    printf "%b Command:" "${INFO_TAG}"
+    printf " %q" "${dotnet_command[@]}"
+    echo ""
 
-    eval ${dotnet_command}
+    "${dotnet_command[@]}"
     if [ "$?" != 0 ]; then
         echo -e "${ERROR_TAG} Failure generating .net solution for ${cs_lang_string}."
         exit -1
@@ -1933,13 +1908,13 @@ function build_cs()
     echo ""
     echo -e "${INFO_TAG} Creating script"
     mkdir -p "${bin_folder}/${RELEASE_DEBUG}"
-    echo "dotnet run --project ${cs_folder} --configuration ${RELEASE_DEBUG} -- \$@" > "${bin_folder}/${RELEASE_DEBUG}/perftest_cs"
+    echo "dotnet run --project \"${cs_folder}/rtiperftest.csproj\" --no-build --configuration ${RELEASE_DEBUG} -- \"\$@\"" > "${bin_folder}/${RELEASE_DEBUG}/perftest_cs"
     chmod +x "${bin_folder}/${RELEASE_DEBUG}/perftest_cs"
 
     echo ""
     echo -e "${INFO_TAG} You can run the dotnet project by executing the following command:"
     echo ""
-    echo "\"dotnet run --project ${cs_folder} --configuration ${RELEASE_DEBUG} -- <arguments>\""
+    echo "\"dotnet run --project ${cs_folder}/rtiperftest.csproj --configuration ${RELEASE_DEBUG} -- <arguments>\""
     echo ""
     echo -e "${INFO_TAG} Alternatively, the following script can be executed:"
     echo ""

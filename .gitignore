@@ -13,9 +13,12 @@
 /srcC*/objs
 /srcCs/bin
 /srcCs/obj
+/tests/**/bin
+/tests/**/obj
 /srcC*/*.vcxproj*
 /srcC*/*.vcproj*
 /srcC*/*.csproj
+!/srcCs/rtiperftest.csproj
 /srcC*/*.sln
 /srcC*/*.sdf
 /srcC*/perftestImplPlugin.*

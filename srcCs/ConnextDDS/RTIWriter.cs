@@ -77,12 +77,17 @@ namespace PerformanceTest
             return true;
         }
 
-        public void WaitForReaders(int numSubscribers)
+        public bool WaitForReaders(int numSubscribers)
         {
             while (writer.MatchedSubscriptions.Count() < numSubscribers)
             {
+                if (Perftest.TestCompleted)
+                {
+                    return false;
+                }
                 Thread.Sleep(100);
             }
+            return true;
         }
 
         public bool NotifyPingResponse()
@@ -108,7 +113,13 @@ namespace PerformanceTest
             {
                 try
                 {
-                    pongSemaphore.WaitOne();
+                    while (!pongSemaphore.WaitOne(100, false))
+                    {
+                        if (Perftest.TestCompleted)
+                        {
+                            return false;
+                        }
+                    }
                 }
                 catch (System.Exception ex)
                 {
@@ -125,7 +136,7 @@ namespace PerformanceTest
             {
                 try
                 {
-                    pongSemaphore.WaitOne(timeout, false);
+                    return pongSemaphore.WaitOne(timeout, false);
                 }
                 catch (System.Exception ex)
                 {
@@ -133,7 +144,7 @@ namespace PerformanceTest
                     return false;
                 }
             }
-            return true;
+            return pongSemaphore == null;
         }
 
         public long GetPulledSampleCount()

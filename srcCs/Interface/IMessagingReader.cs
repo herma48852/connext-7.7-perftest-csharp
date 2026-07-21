@@ -11,7 +11,7 @@ namespace PerformanceTest
 
     public interface IMessagingReader
     {
-        void WaitForWriters(int numWriters);
+        bool WaitForWriters(int numWriters);
 
         void ReceiveMessage(IMessagingCallback callback);
     }

@@ -187,6 +187,7 @@ Table of Contents
     introduction
     download
     compilation
+    csharp_7_7
     execution
     command_line_parameters
     examples
@@ -195,7 +196,6 @@ Table of Contents
     extending_perftest
     compatibility
     release_notes
-
 
 
 

@@ -168,7 +168,7 @@ namespace PerformanceTest
 
         static PerftestTransport()
         {
-            TransportConfigMap = new Dictionary<string, TransportConfig>()
+            TransportConfigMap = new Dictionary<string, TransportConfig>(StringComparer.OrdinalIgnoreCase)
             {
                 { "Default", new TransportConfig(
                     Transport.None,
@@ -318,6 +318,17 @@ namespace PerformanceTest
 
             string transportString = "Default";
 
+            int legacyTransportCount = (parameters.EnableTCP ? 1 : 0)
+                + (parameters.EnableUDPv6 ? 1 : 0)
+                + (parameters.EnableSharedMemory ? 1 : 0);
+            if (legacyTransportCount > 1
+                    || (parameters.TransportSet && legacyTransportCount > 0))
+            {
+                Console.Error.WriteLine(ClassLoggingString
+                    + " Specify exactly one transport using -transport; legacy transport switches cannot be combined.");
+                return false;
+            }
+
             if (parameters.TransportSet)
             {
                 if (parameters.Transport.Length == 0)
@@ -362,6 +373,16 @@ namespace PerformanceTest
             if (parameters.ConfigureTransportCertAuthoritySet)
             {
                 SecureOptions.CertAuthorityFile = parameters.ConfigureTransportCertAuthority;
+            }
+
+            if (parameters.ConfigureTransportCertFileSet)
+            {
+                SecureOptions.CertificateFile = parameters.ConfigureTransportCertFile;
+            }
+
+            if (parameters.ConfigureTransportPrivateKeySet)
+            {
+                SecureOptions.PrivateKeyFile = parameters.ConfigureTransportPrivateKey;
             }
 
             if (parameters.ConfigureTransportWanServerAddressSet)

@@ -34,7 +34,8 @@ namespace PerformanceTest
         private static int pubID;
         private static bool printIntervals = true;
         private static bool showCpu;
-        private static bool testCompleted;
+        private static volatile bool testCompleted;
+        internal static bool TestCompleted => testCompleted;
         public readonly TimeSpan timeoutWaitForAckTimeSpan = new TimeSpan(0, 0, 0, 0, 10);
         public static readonly PerftestVersion version = new PerftestVersion(4, 3, 0, 0);
 
@@ -68,425 +69,123 @@ namespace PerformanceTest
 
         public static ulong OVERHEAD_BYTES { get; set; } = 28;
 
-        public static void Main(string[] argv)
+#if !PERFTEST_TEST_BUILD
+        public static int Main(string[] argv)
         {
             using Perftest app = new Perftest();
-            app.Run(argv);
-        }
+            ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
+            {
+                eventArgs.Cancel = true;
+                testCompleted = true;
+            };
 
-        private void Run(string[] argv)
+            Console.CancelKeyPress += cancelHandler;
+            try
+            {
+                return app.Run(argv);
+            }
+            finally
+            {
+                Console.CancelKeyPress -= cancelHandler;
+            }
+        }
+#endif
+
+        private int Run(string[] argv)
         {
+            testCompleted = false;
             PrintVersion();
 
             try
             {
                 if (!ParseConfig(argv))
                 {
-                    return;
+                    return parseRequestedExit ? parseExitCode : 2;
                 }
-            }catch(NullReferenceException){
-                return;
-            }
 
-            ulong maxPerftestSampleSize = Math.Max(dataSize, FINISHED_SIZE);
+                ulong maxPerftestSampleSize = Math.Max(dataSize, FINISHED_SIZE);
 
-            if (parameters.UnboundedSizeSet)
-            {
-                if (parameters.Keyed)
+                if (parameters.UnboundedSizeSet)
                 {
-                    messagingImpl = new RTIDDSImpl<TestDataKeyedLarge_t>(
-                            new DataTypeKeyedLargeHelper(maxPerftestSampleSize));
+                    if (parameters.Keyed)
+                    {
+                        messagingImpl = new RTIDDSImpl<TestDataKeyedLarge_t>(
+                                new DataTypeKeyedLargeHelper(maxPerftestSampleSize));
+                    }
+                    else
+                    {
+                        messagingImpl = new RTIDDSImpl<TestDataLarge_t>(
+                                new DataTypeLargeHelper(maxPerftestSampleSize));
+                    }
                 }
                 else
                 {
-                    messagingImpl = new RTIDDSImpl<TestDataLarge_t>(
-                            new DataTypeLargeHelper(maxPerftestSampleSize));
+                    if (parameters.Keyed)
+                    {
+                        messagingImpl = new RTIDDSImpl<TestDataKeyed_t>(
+                                new DataTypeKeyedHelper(maxPerftestSampleSize));
+                    }
+                    else
+                    {
+                        messagingImpl = new RTIDDSImpl<TestData_t>(
+                                new DataTypeHelper(maxPerftestSampleSize));
+                    }
                 }
-            }
-            else
-            {
-                if (parameters.Keyed)
+
+                if (!messagingImpl.Initialize(parameters))
                 {
-                    messagingImpl = new RTIDDSImpl<TestDataKeyed_t>(
-                            new DataTypeKeyedHelper(maxPerftestSampleSize));
+                    return 1;
                 }
-                else
+
+                printer = new PerftestPrinter(parameters);
+
+                PrintConfiguration();
+
+                if (parameters.Pub)
                 {
-                    messagingImpl = new RTIDDSImpl<TestData_t>(
-                            new DataTypeHelper(maxPerftestSampleSize));
+                    return Publisher() ? 0 : 1;
                 }
+
+                return Subscriber() ? 0 : 1;
             }
-
-            if (!messagingImpl.Initialize(parameters))
+            catch (Exception ex)
             {
-                return;
-            }
-
-            printer = new PerftestPrinter(parameters);
-
-            PrintConfiguration();
-
-            if (parameters.Pub)
-            {
-                Publisher();
-            }
-            else
-            {
-                Subscriber();
+                Console.Error.WriteLine("Perftest failed: " + ex.Message);
+                if (parameters?.Verbosity >= 3)
+                {
+                    Console.Error.WriteLine(ex);
+                }
+                return 1;
             }
         }
 
         public void Dispose()
         {
-            messagingImpl?.Dispose();
-            Console.Error.WriteLine("Test ended.");
-            Console.Error.Flush();
+            timer?.Stop();
+            timer?.Dispose();
+            timer = null;
+
+            if (messagingImpl != null)
+            {
+                messagingImpl.Dispose();
+                Console.Error.WriteLine("Test ended.");
+                Console.Error.Flush();
+            }
             GC.SuppressFinalize(this);
         }
 
         /*********************************************************
          * ParseParameters
          */
-        private static Parameters ParseParameters(string[] args)
+        private bool parseRequestedExit;
+        private int parseExitCode;
+
+        private Parameters ParseParameters(string[] args)
         {
-            // Create a root command with some options
-            var rootCommand = new System.CommandLine.RootCommand
-            {
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--pub", "-pub" },
-                    description: "Set test to be a publisher."),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--sub", "-sub" },
-                    getDefaultValue: () => true,
-                    description: "Set test to be a subscriber (default)."),
-                new System.CommandLine.Option<int>(
-                    new string[] { "--sidMultiSubTest", "-sidMultiSubTest" },
-                    getDefaultValue: () => 0,
-                    description: "Set id of the subscriber in a multi-subscriber test."),
-                new System.CommandLine.Option<int>(
-                    new string[] { "--pidMultiPubTest", "-pidMultiPubTest" },
-                    getDefaultValue: () => 0,
-                    description: "Set id of the publisher in a multi-publisher test "
-                    + "Only publisher 0 sends latency pings."),
-                new System.CommandLine.Option<ulong>(
-                    new string[] { "--dataLen", "-dataLen" },
-                    description: "Set length of payload for each send. [default: 100]"),
-                new System.CommandLine.Option<ulong>(
-                    new string[] { "--numIter", "-numIter" },
-                    description: "Set number of messages to send, default is "
-                                    + "100000000 for Throughput tests or 10000000 "
-                                    + "for Latency tests. See -executionTime."),
-                new System.CommandLine.Option<uint>(
-                    new string[] { "--instances", "-instances" },
-                    description: "Set the number of instances (keys) to iterate "
-                                    + "over when publishing. [default: 1]"),
-                new System.CommandLine.Option<int>(
-                    new string[] { "--writeInstance", "-writeInstance" },
-                    description: "Set the instance number to be sent."
-                                    + " Digit: 'specific instance-digit'"
-                                    + " WriteInstance parameter cannot be bigger"
-                                    + " than the number of instances."),
-                new System.CommandLine.Option<uint>(
-                    new string[] { "--sleep", "-sleep" },
-                    getDefaultValue: () => 0,
-                    description: "Time to sleep between each send."),
-                new System.CommandLine.Option<uint>(
-                    new string[] { "--latencyCount", "-latencyCount" },
-                    getDefaultValue: () => 10000,
-                    description: "Number samples (or batches) to send before a "
-                                    + "latency ping packet is sent. [default: "
-                                    + "10000 if -latencyTest is not specified, "
-                                    + "1 if -latencyTest is specified]"),
-                new System.CommandLine.Option<uint>(
-                    new string[] { "--numSubcribers", "-numSubscribers" },
-                    getDefaultValue: () => 1,
-                    description: "Number of subscribers running in test."),
-                new System.CommandLine.Option<uint>(
-                    new string[] { "--numPublishers", "-numPublishers" },
-                    getDefaultValue: () => 1,
-                    description: "Number of publishers running in test."),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--noPrintIntervals", "-noPrintIntervals" },
-                    description: "Don't print statistics at intervals during test."),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--useReadThread", "-useReadThread" },
-                    description: "Use separate thread instead of callback to read data."),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--latencyTest", "-latencyTest" },
-                    description: "Run a latency test consisting of a ping-pong synchronous communication."),
-                new System.CommandLine.Option<int>(
-                    new string[] { "--verbosity", "-verbosity" },
-                    description: "Run with different levels of verbosity: 0 - SILENT, 1 - ERROR, 2 - WARNING,"
-                                    + " 3 - ALL. [default: 1]"),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--pubRate", "-pubRate" },
-                    description: "Limit the throughput to the specified number"
-                                    + " of samples/s, default 0 (don't limit)"
-                                    + " [OPTIONAL] Method to control the throughput can be:"
-                                    + " 'spin' or 'sleep'."
-                                    + " [default: 'spin']"),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--keyed", "-keyed" },
-                    description: "Use keyed data. [default: unkeyed]"),
-                new System.CommandLine.Option<ulong>(
-                    new string[] { "--executionTime", "-executionTime" },
-                    description: "Set a maximum duration for the test. The"
-                                    + " first condition triggered will finish the"
-                                    + " test: number of samples or execution time."
-                                    + " [default: 0 (don't set execution time)]"),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--writerStats", "-writerStats" },
-                    description: "Display the Pulled Sample count stats for"
-                                    + " reliable protocol debugging purposes."
-                                    + " [default: Not set]"),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--cpu", "-cpu" },
-                    description: "Display the cpu percent use by the process. [default: Not set]"),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--cft", "-cft" },
-                    description: "Use a Content Filtered Topic for the Throughput topic in the subscriber side."),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--noOutputHeaders", "-noOutputHeaders" },
-                    description: "Skip displaying the header row with the titles of the tables and the summary."
-                                    + " [default: false (it will display titles)]"),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--outputFormat", "-outputFormat" },
-                    getDefaultValue: () => "csv",
-                    description: "Set the output format."
-                                    + " The following formats are available:"
-                                    + " - 'csv'"
-                                    + "- 'json'"
-                                    + "- 'legacy'"),
-                new System.CommandLine.Option<uint>(
-                    new string[] { "--sendQueueSize", "-sendQueueSize" },
-                    getDefaultValue: () => 50,
-                    description: "Sets number of samples (or batches) in send queue."),
-                new System.CommandLine.Option<int>(
-                    new string[] { "--domain", "-domain" },
-                    getDefaultValue: () => 1,
-                    description: "RTI DDS Domain."),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--qosFile", "-qosFile" },
-                    getDefaultValue: () => "perftest_qos_profiles.xml",
-                    description: "Name of XML file for DDS Qos profile."),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--qosLibrary", "-qosLibrary" },
-                    getDefaultValue: () => "PerftestQosLibrary",
-                    description: "Name of QoS Library for DDS Qos profiles."),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--bestEffort", "-bestEffort" },
-                    description: "Run test in best effort mode. [default: reliable]"),
-                new System.CommandLine.Option<int>(
-                    new string[] { "--batchSize", "-batchSize" },
-                    description: "Size in bytes of batched message, default 8kB"
-                                    + " (Disabled for LatencyTest mode or if dataLen > 4kB)."),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--noPositiveAcks", "-noPositiveAcks" },
-                    description: "Disable use of positive acks in reliable"
-                                    + " protocol. [default: use positive acks]"),
-                new System.CommandLine.Option<uint>(
-                    new string[] { "--keepDurationUsec", "-keepDurationUsec" },
-                    getDefaultValue: () => 1000,
-                    description: "Minimum time (us) to keep samples when"
-                                    + " positive acks are disabled."),
-                new System.CommandLine.Option<uint>(
-                    new string[] { "--durability", "-durability" },
-                    getDefaultValue: () => 0,
-                    description: "Set durability QOS, 0 - volatile,"
-                                    + " 1 - transient local, 2 - transient,"
-                                    + " 3 - persistent."),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--dynamicData", "-dynamicData" },
-                    description: "Makes use of the Dynamic Data APIs instead"
-                                    + " of using the generated types."),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--noDirectCommunication", "-noDirectCommunication" },
-                    description: "Use brokered mode for persistent durability."),
-                new System.CommandLine.Option<uint>(
-                    new string[] { "--waitsetDelayUsec", "-waitsetDelayUsec" },
-                    getDefaultValue: () => 100,
-                    description: "UseReadThread related. Allows you to"
-                                    + " process incoming data in groups, based on the"
-                                    + " time rather than individually. It can be used"
-                                    + " combined with -waitsetEventCount."),
-                new System.CommandLine.Option<ulong>(
-                    new string[] { "--waitsetEventCount", "-waitsetEventCount" },
-                    getDefaultValue: () => 5,
-                    description: "UseReadThread related. Allows you to"
-                                    + " process incoming data in groups, based on the"
-                                    + " number of samples rather than individually. It"
-                                    + " can be used combined with -waitsetDelayUsec."),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--enableAutoThrottle", "-enableAutoThrottle" },
-                    description: "Enables the AutoThrottling feature in the"
-                                    + " throughput DataWriter (pub). [default: Not set]"),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--enableTurboMode", "-enableTurboMode" },
-                    description: "Enables the TurboMode feature in the"
-                                    + " throughput DataWriter (pub). [default: Not set]"),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--crc", "-crc" },
-                    description: "Enable CRC [default: Not set]"),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--crcKind", "-crcKind" },
-                    getDefaultValue: () => "CRC_32_CUSTOM",
-                    description: "Modify the default value to compute the CRC.\n"
-                                 + "Options: CRC_32_CUSTOM | CRC_32_LEGACY\n"
-                                 + "[Default: CRC_32_CUSTOM]"),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--enable-message-length", "-enable-message-length" },
-                    description: "Enable enable_message_length_header_extension. [default: Not set]"),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--asynchronous", "-asynchronous" },
-                    description: "Use asynchronous writer. [default: Not set]"),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--flowController", "-flowController" },
-                    getDefaultValue: () => "default",
-                    description: "In the case asynchronous writer use a specific flow controller."
-                                    + " There are several flow controller predefined:"
-                                    + " [default: \"default\" (If using asynchronous)]"),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--peer", "-peer" },
-                    description: "Adds a peer to the peer host address list."),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--unbounded", "-unbounded" },
-                    description: "Use unbounded Sequences"),
-                new System.CommandLine.Option<ulong>(
-                    new string[] { "--unboundedSize", "-unboundedSize" },
-                    getDefaultValue: () => 0,
-                    description: "Optional. Determines the allocation threshold when -unbounded is specified"
-                    + " [default 2*dataLen] up to "+ MAX_BOUNDED_SEQ_SIZE.Value +" Bytes.\n"),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--transport", "-transport" },
-                    description: " Set transport to be used. The rest of the transports will be disabled.\n"
-                    + "Values:\nUDPv4\nUDPv6\nSHMEM\nTCP\nTLS\nDTLS\nWAN\n[default: UDPv4]\n"),
-                new System.CommandLine.Option<int>(
-                    new string[] { "--instanceHashBuckets", "-instanceHashBuckets" },
-                    description: ""),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--secureGovernanceFile", "-secureGovernanceFile" },
-                    description: "Governance file when using security."),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--securePermissionsFile", "-securePermissionsFile" },
-                    description: "Permissions file <optional>."),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--secureCertAuthority", "-secureCertAuthority" },
-                    description: "Certificate authority file <optional>."),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--secureCertFile", "-secureCertFile" },
-                    description: "Certificate file <optional>."),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--securePrivateKey", "-securePrivateKey" },
-                    description: "Private key file <optional>."),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--secureLibrary", "-secureLibrary" },
-                    description: ""),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--lightWeightSecurity", "-lightWeightSecurity" },
-                    description: "Use the Lightweight security Library."),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--secureEncryptionAlgorithm", "-secureEncryptionAlgo" },
-                    description: "Set the value for the Encryption Algorithm"),
-                new System.CommandLine.Option<int>(
-                    new string[] { "--secureDebug", "-secureDebug" },
-                    getDefaultValue: () => -1,
-                    description: ""),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--secureEnableAAD", "-secureEnableAAD" },
-                    getDefaultValue: () => false,
-                    description: "Enable AAD when using security."),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--securePSK", "-securePSK" },
-                    description: "Enables PSK with the argument's seed. [Default: Not Used]"),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--securePSKAlgorithm", "-securePSKAlgorithm" },
-                    description: "PSK Algoritm to use. [Default: AES256+GCM]"),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--enableTCP", "-enableTCP" },
-                    description: "Enables TCP" ),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--enableUDPv6", "-enableUDPv6" },
-                    description: "Enables UDPv6"),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--enableSharedMemory", "-enableSharedMemory" },
-                    description: "Enables Shared Memory (SHMEM)"),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--nic", "-nic" },
-                    description: "Use only the NIC specified by <ipaddr> to receive packets. This will be the only "
-                            + " address announced at discovery time. If not specified, use all available interfaces."),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--configureTransportVerbosity", "-configureTransportVerbosity" },
-                    description: "Verbosity of the transport. [default: 0 (errors only)]"),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--allowInterfaces", "-allowInterfaces" },
-                    description: "Use only the NIC specified by <ipaddr> to receive packets. This will be the only "
-                            + " address announced at discovery time. If not specified, use all available interfaces."),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--configureTransportServerBindPort", "-configureTransportServerBindPort" },
-                    getDefaultValue: () => "7400",
-                    description: "Port used by the transport to accept TCP/TLS connections <optional>."),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--configureTransportWan", "-configureTransportWan" },
-                    description: "Public IP address and port (WAN address and port) (separated with �:� ) "
-                    + " related to the transport instantiation. This is required when using server mode."
-                    + " [default: Not Set]"),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--configureTransportPublicAddress", "-configureTransportPublicAddress" },
-                    description: "Use TCP/TLS across LANs and Firewalls. [default: Not Set, LAN mode]"),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--configureTransportCertAuthority", "-configureTransportCertAuthority" },
-                    getDefaultValue: () => PerftestTransport.TransportCertAuthorityFile,
-                    description: "Certificate authority file <optional>."),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--configureTransportCertFile", "-configureTransportCertFile" },
-                    description: "Certificate file <optional>. [default (Publisher): \""
-                    + PerftestTransport.TransportCertificateFilePub + "\"].\n[default (Subscriber): \""
-                    + PerftestTransport.TransportCertificateFileSub + "\"]"),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--configureTransportPrivateKey", "-configureTransportPrivateKey" },
-                    description: "Private key file <optional>. [default (Publisher): \""
-                    + PerftestTransport.TransportPrivateKeyFilePub + "\"].\n[default (Subscriber): \""
-                    + PerftestTransport.TransportPrivateKeyFileSub + "\"]"),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--configureTransportWanServerAddress", "-configureTransportWanServerAddress" },
-                    description: "Address where to find the WAN Server. [default: Not Set (Required)]"),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--configureTransportWanServerPort", "-configureTransportWanServerPort" },
-                    getDefaultValue: () => "3478",
-                    description: "Port where to find the WAN Server."),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--configureTransportWanId", "-configureTransportWanId" },
-                    description: "Id to be used for the WAN transport. [default: Not Set (Required)]"),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--configureTransportSecureWan", "-configureTransportSecureWan" },
-                    description: "Use WAN with security. default: False]"),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--multicast", "-multicast" },
-                    description: "Use multicast to send data. Each topic will use a different address:"
-                    + " <address> is optional, if unspecified:"),
-                new System.CommandLine.Option<string>(
-                    new string[] { "--multicastAddr", "-multicastAddr" },
-                    description: "Use multicast to send data and set the input <address>|<addr,addr,addr>"
-                    + " as the multicast addresses for the three topics in the application."
-                    + " If only one address is provided, that one and the 2 consecutive ones will be"
-                    + " used for the 3 topics used by Perftest. If one address is set, this one must be"
-                    + " in multicast range and lower than 239.255.255.253 or the equivalent on IPv6.\n"),
-                new System.CommandLine.Option<bool>(
-                    new string[] { "--noMulticast", "-noMulticast" },
-                    description: "Disable multicast.")
-            };
-
-            Parameters result = null;
-            rootCommand.Handler = System.CommandLine.Invocation.CommandHandler.Create(
-                (Parameters parameters) => result = parameters);
-
-            System.CommandLine.CommandExtensions.Invoke(rootCommand, args);
-
-            if (result.UnboundedSize == 0) {
-                result.UnboundedSizeSet = false;
-            }
-
-            return result;
+            CliParseOutcome outcome = CliParser.Parse(args);
+            parseRequestedExit = !outcome.ShouldRun;
+            parseExitCode = outcome.ExitCode;
+            return outcome.Parameters;
         }
 
         /*********************************************************
@@ -495,6 +194,74 @@ namespace PerformanceTest
         private bool ParseConfig(string[] argv)
         {
             parameters = ParseParameters(argv);
+
+            if (parseRequestedExit)
+            {
+                return false;
+            }
+
+            if (parameters.PubSet && parameters.SubSet && parameters.Pub && parameters.Sub)
+            {
+                Console.Error.WriteLine("Specify either -pub or -sub, not both.");
+                return false;
+            }
+            if (parameters.DynamicData)
+            {
+                Console.Error.WriteLine(
+                    "-dynamicData is not supported by the Connext 7.7 C# core port; use generated types.");
+                return false;
+            }
+            if (parameters.NumSubscribers == 0 || parameters.NumPublishers == 0)
+            {
+                Console.Error.WriteLine("-numSubscribers and -numPublishers must be greater than zero.");
+                return false;
+            }
+            if (parameters.SidMultiSubTest < 0 || parameters.PidMultiPubTest < 0)
+            {
+                Console.Error.WriteLine(
+                    "-sidMultiSubTest and -pidMultiPubTest must be zero or greater.");
+                return false;
+            }
+            if (parameters.NumSubscribers > int.MaxValue
+                || parameters.NumPublishers > int.MaxValue)
+            {
+                Console.Error.WriteLine(
+                    "-numSubscribers and -numPublishers must not exceed 2147483647.");
+                return false;
+            }
+            if (parameters.LatencyCount == 0 || parameters.LatencyCount > int.MaxValue)
+            {
+                Console.Error.WriteLine("-latencyCount must be between 1 and 2147483647.");
+                return false;
+            }
+            if (parameters.SendQueueSize == 0 || parameters.SendQueueSize > int.MaxValue)
+            {
+                Console.Error.WriteLine("-sendQueueSize must be between 1 and 2147483647.");
+                return false;
+            }
+            if (parameters.InstancesSet && parameters.Instances >= int.MaxValue)
+            {
+                Console.Error.WriteLine("-instances must be less than 2147483647.");
+                return false;
+            }
+            const long maxKeepDurationUsec = 365L * 24 * 60 * 60 * 1_000_000;
+            if (parameters.KeepDurationUsec < 0
+                || parameters.KeepDurationUsec > maxKeepDurationUsec)
+            {
+                Console.Error.WriteLine(
+                    "-keepDurationUsec must be between 0 and 31536000000000.");
+                return false;
+            }
+            if (parameters.Domain < 0 || parameters.Domain > 232)
+            {
+                Console.Error.WriteLine("-domain must be between 0 and 232.");
+                return false;
+            }
+            if (parameters.WaitsetEventCount == 0 || parameters.WaitsetEventCount > int.MaxValue)
+            {
+                Console.Error.WriteLine("-waitsetEventCount must be between 1 and 2147483647.");
+                return false;
+            }
 
             messagingArgv = new String[argv.Length];
 
@@ -541,6 +308,7 @@ namespace PerformanceTest
                     parameters.UnboundedSize = Math.Min(
                             (ulong)MAX_BOUNDED_SEQ_SIZE.Value,
                             2 * parameters.DataLen);
+                    parameters.UnboundedSizeSet = true;
                 }
             }
             else
@@ -575,9 +343,10 @@ namespace PerformanceTest
             if (parameters.Unbounded && !parameters.UnboundedSizeSet)
             {
                 parameters.UnboundedSize = 2 * parameters.DataLen;
+                parameters.UnboundedSizeSet = true;
             }
 
-            sleepNanosec = parameters.Sleep * 1000000;
+            sleepNanosec = (ulong)parameters.Sleep * 1_000_000;
             latencyCount = (int)parameters.LatencyCount;
             numSubscribers = (int)parameters.NumSubscribers;
             printIntervals = !parameters.NoPrintIntervals;
@@ -619,6 +388,12 @@ namespace PerformanceTest
                     try
                     {
                         String[] st = parameters.PubRate.Split(':');
+                        if (st.Length != 2)
+                        {
+                            Console.Error.WriteLine(
+                                "-pubRate must use the form <samples/s>[:spin|sleep].");
+                            return false;
+                        }
                         if (!ulong.TryParse(st[0], out pubRate))
                         {
                             Console.Error.Write("Bad number for -pubRate\n");
@@ -682,7 +457,7 @@ namespace PerformanceTest
                  * _NumIter value we will use a smaller default:
                  * "numIterDefaultLatencyTest"
                  */
-                if (parameters.NumIterSet)
+                if (!parameters.NumIterSet)
                 {
                     numIter = numIterDefaultLatencyTest;
                 }
@@ -824,7 +599,12 @@ namespace PerformanceTest
                     if (batchSize == -3)
                     {
                         sb.Append("\t\t  BatchSize disabled by default.\n");
-                        sb.Append("\t\t  when using -pubRate.\n");
+                        sb.Append("\t\t  when using FlatData.\n");
+                    }
+                    if (batchSize == -4)
+                    {
+                        sb.Append("\t\t  BatchSize cannot be combined with\n");
+                        sb.Append("\t\t  an explicitly configured -pubRate.\n");
                     }
                 }
 
@@ -879,7 +659,7 @@ namespace PerformanceTest
             Console.Error.WriteLine(sb.ToString());
         }
 
-        private void Subscriber()
+        private bool Subscriber()
         {
             ThroughputListener readerListener = null;
             IMessagingReader reader;
@@ -892,7 +672,7 @@ namespace PerformanceTest
             if (writer == null)
             {
                 Console.Error.Write("Problem creating latency writer.\n");
-                return;
+                return false;
             }
 
             // Check if using callbacks or read thread
@@ -904,7 +684,7 @@ namespace PerformanceTest
                 if (reader == null)
                 {
                     Console.Error.Write("Problem creating throughput reader.\n");
-                    return;
+                    return false;
                 }
             }
             else
@@ -913,7 +693,7 @@ namespace PerformanceTest
                 if (reader == null)
                 {
                     Console.Error.Write("Problem creating throughput reader.\n");
-                    return;
+                    return false;
                 }
                 readerListener = new ThroughputListener(writer, reader, printer, parameters);
                 Task.Run(() => readerListener.ReadThread());
@@ -926,21 +706,31 @@ namespace PerformanceTest
             if (announcementWriter == null)
             {
                 Console.Error.Write("Problem creating announcement writer.\n");
-                return;
+                return false;
             }
 
             // Synchronize with publishers
             Console.Error.Write("Waiting to discover {0} publishers ...\n", parameters.NumPublishers);
-            reader.WaitForWriters((int)parameters.NumPublishers);
+            if (!reader.WaitForWriters((int)parameters.NumPublishers))
+            {
+                return false;
+            }
             // In a multi publisher test, only the first publisher will have a reader.
-            writer.WaitForReaders(1);
-            announcementWriter.WaitForReaders((int)parameters.NumPublishers);
+            if (!writer.WaitForReaders(1)
+                || !announcementWriter.WaitForReaders((int)parameters.NumPublishers))
+            {
+                return false;
+            }
 
             // Send announcement message
             TestMessage message = new TestMessage();
             message.entityId = subID;
-            message.Size = 1;
-            announcementWriter.Send(message, false);
+            message.Size = INITIALIZE_SIZE;
+            if (!announcementWriter.Send(message, false))
+            {
+                Console.Error.WriteLine("Unable to send the subscriber announcement.");
+                return false;
+            }
             announcementWriter.Flush();
 
             Console.Error.Write("Waiting for data ...\n");
@@ -959,7 +749,7 @@ namespace PerformanceTest
             double missingPacketsPercent = 0;
 
             now = GetTimeUsec();
-            while (true)
+            while (!testCompleted)
             {
                 prevTime = now;
                 Thread.Sleep(1000);
@@ -969,10 +759,12 @@ namespace PerformanceTest
                 {
                     TestMessage messageEndTest = new TestMessage();
                     messageEndTest.entityId = subID;
-                    // messageEndTest.data = new List<byte>(new byte[1]);
-                    // messageEndTest.size = 1;
-                    messageEndTest.Size = 1;
-                    announcementWriter.Send(messageEndTest, false);
+                    messageEndTest.Size = FINISHED_SIZE;
+                    if (!announcementWriter.Send(messageEndTest, false))
+                    {
+                        Console.Error.WriteLine("Unable to send the final subscriber announcement.");
+                        return false;
+                    }
                     announcementWriter.Flush();
                     break;
                 }
@@ -1043,16 +835,17 @@ namespace PerformanceTest
             Thread.Sleep(1000);
             Console.Error.Write("Finishing test...\n");
             Console.Out.Flush();
+            return true;
         }
 
-        private void Publisher()
+        private bool Publisher()
         {
             // create throughput/ping writer
             IMessagingWriter throughputWriter = messagingImpl.CreateWriter(THROUGHPUT_TOPIC_NAME.Value);
             if (throughputWriter == null)
             {
                 Console.Error.Write("Problem creating throughput writer.\n");
-                return;
+                return false;
             }
 
             int samplesPerBatch = GetSamplesPerBatch();
@@ -1092,7 +885,7 @@ namespace PerformanceTest
                     if (reader == null)
                     {
                         Console.Error.Write("Problem creating latency reader.\n");
-                        return;
+                        return false;
                     }
                 }
                 else
@@ -1101,7 +894,7 @@ namespace PerformanceTest
                     if (reader == null)
                     {
                         Console.Error.Write("Problem creating latency reader.\n");
-                        return;
+                        return false;
                     }
                     readerListener = new LatencyListener(
                                 reader,
@@ -1127,7 +920,7 @@ namespace PerformanceTest
             if (announcementReader == null)
             {
                 Console.Error.Write("Problem creating announcement reader.\n");
-                return;
+                return false;
             }
             ulong spinsPerUsec = 0;
             const ulong sleepUsec = 1000;
@@ -1143,7 +936,7 @@ namespace PerformanceTest
                             "Error initializing spin per microsecond. "
                             + "-pubRate cannot be used\n"
                             + "Exiting.\n");
-                        return;
+                        return false;
                     }
                     spinLoopCount = 1000000 * spinsPerUsec / pubRate;
                 }
@@ -1154,17 +947,28 @@ namespace PerformanceTest
             }
 
             Console.Error.WriteLine($"Waiting to discover {numSubscribers} subscribers ...");
-            throughputWriter.WaitForReaders(numSubscribers);
+            if (!throughputWriter.WaitForReaders(numSubscribers))
+            {
+                return false;
+            }
             // Only publisher with ID 0 will have a reader.
-            reader?.WaitForWriters(numSubscribers);
-            announcementReader.WaitForWriters(numSubscribers);
+            if ((reader != null && !reader.WaitForWriters(numSubscribers))
+                || !announcementReader.WaitForWriters(numSubscribers))
+            {
+                return false;
+            }
 
             // We have to wait until every Subscriber sends an announcement message
             // indicating that it has discovered every Publisher
             Console.Error.Write("Waiting for subscribers announcement ...\n");
-            while (numSubscribers > announcementReaderListener.announcedSubscriberReplies)
+            while (numSubscribers > announcementReaderListener.ActiveSubscriberCount
+                && !testCompleted)
             {
                 Thread.Sleep(1000);
+            }
+            if (testCompleted)
+            {
+                return false;
             }
 
             // Allocate data and set size
@@ -1197,7 +1001,11 @@ namespace PerformanceTest
             for (int i = 0; i < initializeSampleCount; i++)
             {
                 // Send test initialization message
-                throughputWriter.Send(message, true);
+                if (!throughputWriter.Send(message, true))
+                {
+                    Console.Error.WriteLine("Unable to send an initialization sample.");
+                    return false;
+                }
             }
             throughputWriter.Flush();
 
@@ -1248,6 +1056,10 @@ namespace PerformanceTest
                     timeDelta = timeNow - timeLastCheck;
                     timeLastCheck = timeNow;
                     // rate is the amount of loops that have to be executed in the next second to achieve pubRate
+                    if (timeDelta == 0)
+                    {
+                        continue;
+                    }
                     rate = pubRateSamplePeriod * 1000000 / timeDelta;
 
                     if (pubRateMethodSpin)
@@ -1289,7 +1101,9 @@ namespace PerformanceTest
 
                 if (sleepNanosec > 0)
                 {
-                    Thread.Sleep((int)sleepNanosec / 1000000);
+                    double sleepMilliseconds = sleepNanosec / 1_000_000.0;
+                    Thread.Sleep(TimeSpan.FromMilliseconds(
+                        Math.Min(sleepMilliseconds, int.MaxValue)));
                 }
 
                 pingID = -1;
@@ -1335,12 +1149,19 @@ namespace PerformanceTest
 
                 message.seqNum = (uint)loop;
                 message.latencyPing = pingID;
-                throughputWriter.Send(message, false);
+                if (!throughputWriter.Send(message, false))
+                {
+                    Console.Error.WriteLine("Unable to send a throughput sample.");
+                    return false;
+                }
                 if (latencyTest && sentPing)
                 {
                     if (isReliable)
                     {
-                        throughputWriter.WaitForPingResponse();
+                        if (!throughputWriter.WaitForPingResponse())
+                        {
+                            return false;
+                        }
                     }
                     else
                     {
@@ -1365,12 +1186,14 @@ namespace PerformanceTest
             message.Size = FINISHED_SIZE;
             int j = 0;
             const int announcementSampleCount = 50;
-            announcementReaderListener.announcedSubscriberReplies =
-                    numSubscribers;
-            while (announcementReaderListener.announcedSubscriberReplies > 0
+            while (announcementReaderListener.ActiveSubscriberCount > 0
                     && j < announcementSampleCount)
             {
-                throughputWriter.Send(message, true);
+                if (!throughputWriter.Send(message, true))
+                {
+                    Console.Error.WriteLine("Unable to send a finalization sample.");
+                    return false;
+                }
                 throughputWriter.Flush();
                 try
                 {
@@ -1396,12 +1219,17 @@ namespace PerformanceTest
             printer.PrintFinalOutput();
             Console.Error.WriteLine("Finishing test...");
             Console.Out.Flush();
+            return true;
         }
 
         public static ulong GetTimeUsec()
         {
-            return (ulong)(1_000_000 * System.Diagnostics.Stopwatch.GetTimestamp()
-                            / System.Diagnostics.Stopwatch.Frequency);
+            long ticks = System.Diagnostics.Stopwatch.GetTimestamp();
+            long frequency = System.Diagnostics.Stopwatch.Frequency;
+            long wholeSeconds = ticks / frequency;
+            long remainingTicks = ticks % frequency;
+            return (ulong)(wholeSeconds * 1_000_000
+                + remainingTicks * 1_000_000 / frequency);
         }
 
         private static void Timeout(object source, ElapsedEventArgs e)
@@ -1415,6 +1243,7 @@ namespace PerformanceTest
             {
                 timer = new System.Timers.Timer();
                 timer.Elapsed += Timeout;
+                timer.AutoReset = false;
                 Console.Error.WriteLine($"Setting timeout to {executionTime} seconds.");
                 timer.Interval = executionTime * 1000;
                 timer.Enabled = true;

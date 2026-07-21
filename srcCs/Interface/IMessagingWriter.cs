@@ -9,7 +9,7 @@ namespace PerformanceTest
 {
     public interface IMessagingWriter
     {
-        void WaitForReaders(int numReaders);
+        bool WaitForReaders(int numReaders);
         bool Send(TestMessage message, bool isCftWildCardKey);
         void Flush();
         bool NotifyPingResponse();

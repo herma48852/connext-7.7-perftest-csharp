@@ -9,28 +9,32 @@ namespace PerformanceTest
 {
     public class AnnouncementListener : IMessagingCallback
     {
-        public int announcedSubscriberReplies;
-        private readonly List<int> finishedSubscribers = new List<int>();
+        private readonly object subscriberLock = new object();
+        private readonly HashSet<int> activeSubscribers = new HashSet<int>();
+
+        public int ActiveSubscriberCount
+        {
+            get
+            {
+                lock (subscriberLock)
+                {
+                    return activeSubscribers.Count;
+                }
+            }
+        }
 
         public void ProcessMessage(TestMessage message)
         {
-            /*
-             * If the entity_id is not in the list of subscribers
-             * that finished the test, add it.
-             *
-             * Independently, decrease announced_subscriber_replies if a known
-             * writer responds to a message using this channel. We use
-             * this as a way to check that all the readers have received
-             * a message written by the Throughput writer.
-             */
-            if (!finishedSubscribers.Contains(message.entityId))
+            lock (subscriberLock)
             {
-                finishedSubscribers.Add(message.entityId);
-                announcedSubscriberReplies++;
-            }
-            else
-            {
-                announcedSubscriberReplies--;
+                if (message.Size == Perftest.INITIALIZE_SIZE)
+                {
+                    activeSubscribers.Add(message.entityId);
+                }
+                else if (message.Size == Perftest.FINISHED_SIZE)
+                {
+                    activeSubscribers.Remove(message.entityId);
+                }
             }
         }
     }

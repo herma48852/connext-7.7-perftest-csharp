@@ -21,7 +21,12 @@ namespace PerformanceTest
         private uint latencyMin = Perftest.LATENCY_RESET_VALUE;
         private uint latencyMax;
         private int lastDataLength;
-        public bool EndTest { get; set; }
+        private volatile bool endTest;
+        public bool EndTest
+        {
+            get => endTest;
+            set => endTest = value;
+        }
         private readonly uint[] latencyHistory;
         private uint clockSkewCount = 0;
         private readonly IMessagingReader reader;
