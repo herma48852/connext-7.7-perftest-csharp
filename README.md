@@ -181,7 +181,7 @@ After configuring the Connext environment, build only the C# implementation:
 The wrapper creates:
 
 ```text
-bin/release/perftest_cs
+./bin/release/perftest_cs
 ```
 
 On Windows:
@@ -205,13 +205,21 @@ dotnet restore srcCs/rtiperftest.csproj
 dotnet build srcCs/rtiperftest.csproj --configuration Release --no-restore
 ```
 
-The resulting application assembly is:
+The direct build produces a native launcher for the current platform and the
+managed application assembly:
 
 ```text
+./srcCs/bin/Release/net8.0/perftest_cs
 srcCs/bin/Release/net8.0/perftest_cs.dll
 ```
 
-Run it directly with:
+The native launcher is the simplest way to run a direct build:
+
+```bash
+./srcCs/bin/Release/net8.0/perftest_cs -help
+```
+
+The equivalent framework-dependent command is:
 
 ```bash
 dotnet srcCs/bin/Release/net8.0/perftest_cs.dll -help
@@ -262,7 +270,7 @@ domain `81` and explicitly select UDPv4 to provide a portable baseline.
 In terminal 1, start the subscriber:
 
 ```bash
-bin/release/perftest_cs \
+./srcCs/bin/Release/net8.0/perftest_cs \
   -sub \
   -domain 81 \
   -transport UDPv4 \
@@ -272,7 +280,7 @@ bin/release/perftest_cs \
 In terminal 2, start the publisher:
 
 ```bash
-bin/release/perftest_cs \
+./srcCs/bin/Release/net8.0/perftest_cs \
   -pub \
   -domain 81 \
   -transport UDPv4 \
@@ -291,7 +299,10 @@ Expected behavior:
 6. The subscriber prints throughput and loss statistics.
 7. The finalization handshake completes and the C# applications exit.
 
-Use the same commands with the direct assembly if the wrapper was not built:
+The commands above use the launcher produced by `dotnet build`. If the project
+was built through `build.sh --cs-build`, the optional
+`./bin/release/perftest_cs` wrapper accepts the same arguments. The managed DLL
+can also be run explicitly:
 
 ```bash
 dotnet srcCs/bin/Release/net8.0/perftest_cs.dll -sub -domain 81 -transport UDPv4
@@ -301,7 +312,7 @@ dotnet srcCs/bin/Release/net8.0/perftest_cs.dll -pub -domain 81 -transport UDPv4
 Display the complete option list at any time:
 
 ```bash
-bin/release/perftest_cs -help
+./srcCs/bin/Release/net8.0/perftest_cs -help
 ```
 
 Both traditional single-dash spellings, such as `-domain`, and double-dash
@@ -316,13 +327,13 @@ Throughput mode is the default. Batching defaults to 8192 bytes.
 Subscriber:
 
 ```bash
-bin/release/perftest_cs -sub -domain 82 -transport UDPv4
+./srcCs/bin/Release/net8.0/perftest_cs -sub -domain 82 -transport UDPv4
 ```
 
 Publisher:
 
 ```bash
-bin/release/perftest_cs -pub -domain 82 -transport UDPv4 \
+./srcCs/bin/Release/net8.0/perftest_cs -pub -domain 82 -transport UDPv4 \
   -dataLen 1024 -batchSize 8192 -executionTime 60
 ```
 
@@ -337,14 +348,14 @@ exchange and implicitly uses a latency count of one unless overridden.
 Subscriber:
 
 ```bash
-bin/release/perftest_cs -sub -domain 83 -transport UDPv4 \
+./srcCs/bin/Release/net8.0/perftest_cs -sub -domain 83 -transport UDPv4 \
   -latencyTest -noPrintIntervals
 ```
 
 Publisher:
 
 ```bash
-bin/release/perftest_cs -pub -domain 83 -transport UDPv4 \
+./srcCs/bin/Release/net8.0/perftest_cs -pub -domain 83 -transport UDPv4 \
   -latencyTest -dataLen 64 -numIter 100000 -noPrintIntervals
 ```
 
@@ -357,7 +368,7 @@ Limit the publication rate to 50,000 samples per second using a spin-based
 rate controller:
 
 ```bash
-bin/release/perftest_cs -pub -domain 84 -transport UDPv4 \
+./srcCs/bin/Release/net8.0/perftest_cs -pub -domain 84 -transport UDPv4 \
   -dataLen 1024 -pubRate 50000:spin -executionTime 60
 ```
 
@@ -365,7 +376,7 @@ Use `:sleep` to reduce CPU use when the operating system's sleep precision is
 adequate:
 
 ```bash
-bin/release/perftest_cs -pub -domain 84 -transport UDPv4 \
+./srcCs/bin/Release/net8.0/perftest_cs -pub -domain 84 -transport UDPv4 \
   -pubRate 1000:sleep -executionTime 60
 ```
 
@@ -375,10 +386,10 @@ Specify `-bestEffort` on both sides:
 
 ```bash
 # Subscriber
-bin/release/perftest_cs -sub -domain 85 -transport UDPv4 -bestEffort
+./srcCs/bin/Release/net8.0/perftest_cs -sub -domain 85 -transport UDPv4 -bestEffort
 
 # Publisher
-bin/release/perftest_cs -pub -domain 85 -transport UDPv4 \
+./srcCs/bin/Release/net8.0/perftest_cs -pub -domain 85 -transport UDPv4 \
   -bestEffort -dataLen 1024 -numIter 100000
 ```
 
@@ -391,7 +402,7 @@ By default, readers use `DataAvailable` callbacks. Use a WaitSet-driven reader
 loop with:
 
 ```bash
-bin/release/perftest_cs -sub -domain 86 -transport UDPv4 \
+./srcCs/bin/Release/net8.0/perftest_cs -sub -domain 86 -transport UDPv4 \
   -useReadThread -waitsetEventCount 5 -waitsetDelayUsec 100
 ```
 
@@ -404,14 +415,14 @@ Use the same generated type on both sides. The following subscriber accepts
 only keyed instances 2 through 4:
 
 ```bash
-bin/release/perftest_cs -sub -domain 87 -transport UDPv4 \
+./srcCs/bin/Release/net8.0/perftest_cs -sub -domain 87 -transport UDPv4 \
   -keyed -instances 8 -cft 2:4
 ```
 
 The publisher writes round-robin across eight instances:
 
 ```bash
-bin/release/perftest_cs -pub -domain 87 -transport UDPv4 \
+./srcCs/bin/Release/net8.0/perftest_cs -pub -domain 87 -transport UDPv4 \
   -keyed -instances 8 -dataLen 1024 -numIter 100000
 ```
 
@@ -423,10 +434,10 @@ Both sides must specify `-unbounded`:
 
 ```bash
 # Subscriber
-bin/release/perftest_cs -sub -domain 88 -transport UDPv4 -unbounded
+./srcCs/bin/Release/net8.0/perftest_cs -sub -domain 88 -transport UDPv4 -unbounded
 
 # Publisher
-bin/release/perftest_cs -pub -domain 88 -transport UDPv4 \
+./srcCs/bin/Release/net8.0/perftest_cs -pub -domain 88 -transport UDPv4 \
   -unbounded -unboundedSize 65536 -dataLen 32768 -numIter 10000
 ```
 
@@ -435,7 +446,7 @@ Large samples may require transport, send-window, and flow-controller tuning.
 ### Asynchronous publishing
 
 ```bash
-bin/release/perftest_cs -pub -domain 89 -transport UDPv4 \
+./srcCs/bin/Release/net8.0/perftest_cs -pub -domain 89 -transport UDPv4 \
   -asynchronous -flowController 1Gbps \
   -dataLen 65536 -executionTime 60
 ```
@@ -448,10 +459,10 @@ Enable multicast on both sides:
 
 ```bash
 # Subscriber
-bin/release/perftest_cs -sub -domain 90 -transport UDPv4 -multicast
+./srcCs/bin/Release/net8.0/perftest_cs -sub -domain 90 -transport UDPv4 -multicast
 
 # Publisher
-bin/release/perftest_cs -pub -domain 90 -transport UDPv4 \
+./srcCs/bin/Release/net8.0/perftest_cs -pub -domain 90 -transport UDPv4 \
   -multicast -dataLen 1024 -executionTime 60
 ```
 
@@ -460,16 +471,29 @@ Use `-multicastAddr` to supply one address for all topics or a comma-separated
 
 ### Multiple machines without multicast discovery
 
-Supply initial peers as needed on both machines. `-peer` may be repeated:
+On a subscriber whose local interface is `192.168.1.154`, with the publisher
+running on `192.168.1.156`:
 
 ```bash
-bin/release/perftest_cs -sub -domain 91 -transport UDPv4 \
-  -peer 192.0.2.10 -peer 192.0.2.11 -nic 192.0.2.20
+./srcCs/bin/Release/net8.0/perftest_cs \
+  -sub -domain 81 -transport UDPv4 \
+  -nic 192.168.1.154 -peer 192.168.1.156
 ```
 
-Use `-nic` or `-allowInterfaces` to constrain the receive interface. Ensure
-host firewalls permit Connext DDS discovery and user traffic for the selected
-domain.
+Run the corresponding command on the publisher at `192.168.1.156`, reversing
+the local interface and peer addresses:
+
+```bash
+./srcCs/bin/Release/net8.0/perftest_cs \
+  -pub -domain 81 -transport UDPv4 \
+  -nic 192.168.1.156 -peer 192.168.1.154 \
+  -dataLen 1024 -numIter 100000
+```
+
+`-nic` is always the local machine's interface; `-peer` identifies the remote
+machine used for discovery and may be repeated. Use `-allowInterfaces` for a
+more general interface allow-list. Ensure host firewalls permit Connext DDS
+discovery and user traffic for the selected domain.
 
 ### Machine-readable output
 
@@ -477,7 +501,7 @@ CSV is the default output format. JSON and the legacy text format are also
 available:
 
 ```bash
-bin/release/perftest_cs -sub -domain 92 -transport UDPv4 \
+./srcCs/bin/Release/net8.0/perftest_cs -sub -domain 92 -transport UDPv4 \
   -outputFormat json -noPrintIntervals
 ```
 
@@ -613,11 +637,11 @@ A repository-root example using the included encrypted-data governance file:
 
 ```bash
 # Subscriber
-bin/release/perftest_cs -sub -domain 93 -transport UDPv4 \
+./srcCs/bin/Release/net8.0/perftest_cs -sub -domain 93 -transport UDPv4 \
   -secureGovernanceFile resource/secure/signed_PerftestGovernance_DataEncrypt.xml
 
 # Publisher
-bin/release/perftest_cs -pub -domain 93 -transport UDPv4 \
+./srcCs/bin/Release/net8.0/perftest_cs -pub -domain 93 -transport UDPv4 \
   -secureGovernanceFile resource/secure/signed_PerftestGovernance_DataEncrypt.xml \
   -dataLen 1024 -numIter 100000
 ```
@@ -656,7 +680,7 @@ PerftestQosLibrary
 Override them with:
 
 ```bash
-bin/release/perftest_cs -sub \
+./srcCs/bin/Release/net8.0/perftest_cs -sub \
   -qosFile /absolute/path/custom_perftest_qos.xml \
   -qosLibrary MyPerftestQosLibrary
 ```
@@ -719,11 +743,11 @@ For the validated Apple Silicon platform:
 
 ```bash
 # C# subscriber
-bin/release/perftest_cs -sub -domain 94 -transport UDPv4 \
+./srcCs/bin/Release/net8.0/perftest_cs -sub -domain 94 -transport UDPv4 \
   -noPrintIntervals
 
 # C++ publisher
-bin/<connext-architecture>/release/perftest_cpp \
+./bin/<connext-architecture>/release/perftest_cpp \
   -pub -domain 94 -transport UDPv4 \
   -dataLen 1024 -numIter 100000 -noPrintIntervals
 ```
@@ -732,11 +756,11 @@ bin/<connext-architecture>/release/perftest_cpp \
 
 ```bash
 # C++ subscriber
-bin/<connext-architecture>/release/perftest_cpp \
+./bin/<connext-architecture>/release/perftest_cpp \
   -sub -domain 95 -transport UDPv4 -noPrintIntervals
 
 # C# publisher
-bin/release/perftest_cs -pub -domain 95 -transport UDPv4 \
+./srcCs/bin/Release/net8.0/perftest_cs -pub -domain 95 -transport UDPv4 \
   -dataLen 1024 -numIter 100000 -noPrintIntervals
 ```
 
