@@ -217,11 +217,18 @@ test. After it succeeds, continue to the local benchmark below.
 
 After the `-help` smoke check succeeds, run an actual local benchmark. Perftest
 uses two processes: a subscriber that receives samples and a publisher that
-sends them. Keep the configured Connext environment loaded in both terminals.
+sends them.
 
-Before running Perftest, change **both terminals** to the root directory of the
-cloned repository. Running from the repository root ensures that the default
-QoS and security file paths resolve correctly.
+Open two Command Prompts. Before running either the subscriber or publisher,
+load the RTI runtime environment in **both terminals**:
+
+```bat
+call "C:\Program Files\rti_connext_dds-7.7.0\resource\scripts\rtisetenv_x64Win64VS2017.bat"
+```
+
+Then change both terminals to the root directory of the cloned repository.
+Running from the repository root ensures that the default QoS and security file
+paths resolve correctly.
 
 Use an unused DDS domain for each independent test. The examples below use
 domain `81` and explicitly select UDPv4 to provide a portable baseline.
@@ -391,9 +398,15 @@ the convenience script `./bin/release/perftest_cs`. Verify the first run with:
 
 ### Run a local Apple Silicon benchmark
 
-Keep the configured Connext environment loaded in two Bash terminals. In both
-terminals, change to the root directory of the cloned repository before running
-Perftest. Then start the subscriber in the first terminal:
+Open two Bash terminals. Before running either the subscriber or publisher,
+load the RTI runtime environment in **both terminals**:
+
+```bash
+source /Applications/rti_connext_dds-7.7.0/resource/scripts/rtisetenv_arm64Darwin23clang16.0.bash
+```
+
+Then change both terminals to the root directory of the cloned repository and
+start the subscriber in the first terminal:
 
 ```bash
 ./bin/release/perftest_cs \
@@ -477,9 +490,15 @@ the convenience script `./bin/release/perftest_cs`. Verify the first run with:
 
 ### Run a local Linux benchmark
 
-Keep the configured Connext environment loaded in two terminals. In both
-terminals, change to the root directory of the cloned repository before running
-Perftest. Then start the subscriber in the first terminal:
+Open two terminals. Before running either the subscriber or publisher, load the
+RTI runtime environment in **both terminals**:
+
+```bash
+source /opt/rti_connext_dds-7.7.0/resource/scripts/rtisetenv_<architecture>.bash
+```
+
+Then change both terminals to the root directory of the cloned repository and
+start the subscriber in the first terminal:
 
 ```bash
 ./bin/release/perftest_cs \
