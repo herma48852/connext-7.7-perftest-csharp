@@ -22,9 +22,9 @@ separately.
 - [How Perftest works](#how-perftest-works)
 - [C# feature scope](#c-feature-scope)
 - [Prerequisites](#prerequisites)
-- [Clone and configure](#clone-and-configure)
-- [Build](#build)
-- [Quick start](#quick-start)
+- [Windows setup and first run](#windows-setup-and-first-run-primary)
+- [Apple Silicon setup and first run](#apple-silicon-setup-and-first-run)
+- [Linux setup and first run](#linux-setup-and-first-run)
 - [Common benchmark scenarios](#common-benchmark-scenarios)
 - [Important command-line options](#important-command-line-options)
 - [Transports, discovery, security, and QoS](#transports-discovery-security-and-qos)
@@ -117,13 +117,16 @@ Confirm the .NET SDK:
 dotnet --version
 ```
 
-### Configure the Connext environment
+## Windows setup and first run (primary)
+
+The Windows path is presented first and runs continuously from environment
+configuration through the first local benchmark.
+
+### Configure the build environment
 
 The production build needs `NDDSHOME` and the Connext host tools. Prefer the
 environment script supplied by the installed Connext version because it also
 configures native library paths.
-
-#### Windows (primary)
 
 From a Command Prompt, initialize the Visual Studio x64 developer environment,
 then load the RTI environment:
@@ -152,43 +155,16 @@ If Visual Studio is installed in a different edition or location, run its x64
 Native Tools Command Prompt or substitute the corresponding `VsDevCmd.bat`
 path.
 
-#### macOS and Linux
-
-On the validated Apple Silicon installation, run the script from **Bash**:
-
-```bash
-/bin/bash
-source /Applications/rti_connext_dds-7.7.0/resource/scripts/rtisetenv_arm64Darwin23clang16.0.bash
-```
-
-Do not source that Bash script directly from `zsh`; it uses Bash-specific
-variables such as `BASH_SOURCE`. Either enter Bash as shown above or run an
-individual command through `bash -lc`:
-
-```bash
-bash -lc 'source /Applications/rti_connext_dds-7.7.0/resource/scripts/rtisetenv_arm64Darwin23clang16.0.bash && dotnet build srcCs/rtiperftest.csproj --configuration Release'
-```
-
-On Linux, select the script that matches the installed target architecture:
-
-```bash
-source /opt/rti_connext_dds-7.7.0/resource/scripts/rtisetenv_<architecture>.bash
-```
-
-Verify the environment on macOS or Linux:
-
-```bash
-echo "$NDDSHOME"
-"$NDDSHOME/bin/rtiddsgen" -version
-```
-
 The build rejects a Code Generator version that is not 4.7.x.
 
-## Clone and configure
+### Choose a parent directory and clone the repository
 
-On Windows, clone this repository and enter its root directory:
+Choose the parent directory where the repository should be cloned and change to
+that directory. The example below uses `C:\work`; use your preferred location
+instead:
 
 ```bat
+cd /d "C:\work"
 git clone git@github.com:herma48852/connext-7.7-perftest-csharp.git
 cd connext-7.7-perftest-csharp
 ```
@@ -196,21 +172,13 @@ cd connext-7.7-perftest-csharp
 All commands in this README assume the current directory is the repository
 root. This matters for the default QoS and security file paths.
 
-## Build
-
-### Recommended repository build wrapper
+### Build the application
 
 After configuring the Connext environment, build only the C# implementation.
 On Windows, run:
 
 ```bat
 build.bat --platform "%CONNEXTDDS_ARCH%" --nddshome "%NDDSHOME%" --cs-build
-```
-
-On macOS or Linux, run:
-
-```bash
-./build.sh --nddshome "$NDDSHOME" --cs-build
 ```
 
 ### What the build produces
@@ -232,9 +200,6 @@ runs the already-built C# project with `dotnet run --no-build` and passes its
 command-line arguments to Perftest. The examples below use this script so the
 commands stay short and consistent.
 
-On macOS or Linux, `build.sh` creates the equivalent convenience script at
-`./bin/release/perftest_cs`.
-
 ### Verify the first run
 
 Before starting a benchmark, confirm that the newly built program starts and
@@ -246,89 +211,17 @@ bin\release\perftest_cs.bat -help
 
 This is only a startup smoke check. It should print the Perftest and Connext
 versions followed by the available options; it does not run a performance
-test. After it succeeds, continue to [Quick start](#quick-start) to run a local
-publisher/subscriber benchmark.
+test. After it succeeds, continue to the local benchmark below.
 
-### Alternative: direct .NET build
-
-Instead of using `build.bat`, the project can be restored and built directly:
-
-```bash
-dotnet restore srcCs/rtiperftest.csproj
-dotnet build srcCs/rtiperftest.csproj --configuration Release --no-restore
-```
-
-The direct build creates the Windows application host and managed assembly, but
-does not create the repository-level `bin\release\perftest_cs.bat` convenience
-script:
-
-```text
-srcCs\bin\Release\net8.0\perftest_cs.exe
-srcCs\bin\Release\net8.0\perftest_cs.dll
-```
-
-Run the Windows application host directly with:
-
-```bat
-srcCs\bin\Release\net8.0\perftest_cs.exe -help
-```
-
-The equivalent framework-dependent command is:
-
-```bat
-dotnet srcCs\bin\Release\net8.0\perftest_cs.dll -help
-```
-
-Or use `dotnet run`:
-
-```bat
-dotnet run --project srcCs\rtiperftest.csproj --configuration Release --no-build -- -help
-```
-
-On macOS or Linux, the corresponding application host is
-`./srcCs/bin/Release/net8.0/perftest_cs`.
-
-### What happens during a production build
-
-The C# project:
-
-1. validates that `rtiddsgen` is available and reports version 4.7.x;
-2. generates C# types from `srcIdl/perftest.idl` with unbounded-sequence
-   support;
-3. writes generated sources under `srcCs/obj`, not into the source tree;
-4. compiles the generated types and handwritten C# implementation together;
-5. copies `perftest_qos_profiles.xml` and the required security artifacts into
-   the output directory; and
-6. treats C# compiler warnings as errors.
-
-Code generation is incremental. Repeated builds do not duplicate generated
-sources or produce duplicate-source warnings.
-
-### Clean generated output
-
-Use the repository wrapper:
-
-```bat
-build.bat --clean
-```
-
-On macOS or Linux:
-
-```bash
-./build.sh --clean
-```
-
-Or remove only normal .NET build output with:
-
-```bash
-dotnet clean srcCs/rtiperftest.csproj --configuration Release
-```
-
-## Quick start
+### Run a local Windows benchmark
 
 After the `-help` smoke check succeeds, run an actual local benchmark. Perftest
 uses two processes: a subscriber that receives samples and a publisher that
 sends them. Keep the configured Connext environment loaded in both terminals.
+
+Before running Perftest, change **both terminals** to the root directory of the
+cloned repository. Running from the repository root ensures that the default
+QoS and security file paths resolve correctly.
 
 Use an unused DDS domain for each independent test. The examples below use
 domain `81` and explicitly select UDPv4 to provide a portable baseline.
@@ -367,9 +260,8 @@ Expected behavior:
 
 The commands above use the convenience script created by `build.bat`. The
 actual Windows application host at
-`srcCs\bin\Release\net8.0\perftest_cs.exe` accepts the same arguments. On macOS
-or Linux, use `./bin/release/perftest_cs`. The managed DLL can also be run
-explicitly:
+`srcCs\bin\Release\net8.0\perftest_cs.exe` accepts the same arguments. The
+managed DLL can also be run explicitly:
 
 ```bat
 dotnet srcCs\bin\Release\net8.0\perftest_cs.dll -sub -domain 81 -transport UDPv4
@@ -384,6 +276,232 @@ bin\release\perftest_cs.bat -help
 
 Both traditional single-dash spellings, such as `-domain`, and double-dash
 spellings, such as `--domain`, are accepted.
+
+### Alternative: direct .NET build
+
+Instead of using `build.bat`, the project can be restored and built directly:
+
+```bat
+dotnet restore srcCs/rtiperftest.csproj
+dotnet build srcCs/rtiperftest.csproj --configuration Release --no-restore
+```
+
+The direct build creates the Windows application host and managed assembly, but
+does not create the repository-level `bin\release\perftest_cs.bat` convenience
+script:
+
+```text
+srcCs\bin\Release\net8.0\perftest_cs.exe
+srcCs\bin\Release\net8.0\perftest_cs.dll
+```
+
+Run the Windows application host directly with:
+
+```bat
+srcCs\bin\Release\net8.0\perftest_cs.exe -help
+```
+
+The equivalent framework-dependent command is:
+
+```bat
+dotnet srcCs\bin\Release\net8.0\perftest_cs.dll -help
+```
+
+Or use `dotnet run`:
+
+```bat
+dotnet run --project srcCs\rtiperftest.csproj --configuration Release --no-build -- -help
+```
+
+### What happens during a production build
+
+The C# project:
+
+1. validates that `rtiddsgen` is available and reports version 4.7.x;
+2. generates C# types from `srcIdl/perftest.idl` with unbounded-sequence
+   support;
+3. writes generated sources under `srcCs/obj`, not into the source tree;
+4. compiles the generated types and handwritten C# implementation together;
+5. copies `perftest_qos_profiles.xml` and the required security artifacts into
+   the output directory; and
+6. treats C# compiler warnings as errors.
+
+Code generation is incremental. Repeated builds do not duplicate generated
+sources or produce duplicate-source warnings.
+
+### Clean generated output
+
+Use the repository wrapper:
+
+```bat
+build.bat --clean
+```
+
+Or remove only normal .NET build output with:
+
+```bat
+dotnet clean srcCs/rtiperftest.csproj --configuration Release
+```
+
+## Apple Silicon setup and first run
+
+This section contains the complete validated Apple Silicon path. Run all shell
+commands from **Bash** because the RTI environment script uses Bash-specific
+variables such as `BASH_SOURCE`.
+
+### Configure the Apple Silicon environment
+
+Open Terminal, enter Bash, and load the Connext environment:
+
+```bash
+/bin/bash
+source /Applications/rti_connext_dds-7.7.0/resource/scripts/rtisetenv_arm64Darwin23clang16.0.bash
+```
+
+Verify the tools and environment:
+
+```bash
+dotnet --version
+echo "$NDDSHOME"
+echo "$CONNEXTDDS_ARCH"
+"$NDDSHOME/bin/rtiddsgen" -version
+```
+
+The expected architecture is `arm64Darwin23clang16.0`, the .NET SDK must be
+version 8, and RTI Code Generator must report version 4.7.x.
+
+### Clone and build on Apple Silicon
+
+Choose the parent directory where the repository should be cloned and change to
+that directory. The example uses `~/work`; use your preferred location instead:
+
+```bash
+cd ~/work
+git clone git@github.com:herma48852/connext-7.7-perftest-csharp.git
+cd connext-7.7-perftest-csharp
+./build.sh --platform "$CONNEXTDDS_ARCH" --nddshome "$NDDSHOME" --cs-build
+```
+
+The build compiles the application under `srcCs/bin/Release/net8.0` and creates
+the convenience script `./bin/release/perftest_cs`. Verify the first run with:
+
+```bash
+./bin/release/perftest_cs -help
+```
+
+### Run a local Apple Silicon benchmark
+
+Keep the configured Connext environment loaded in two Bash terminals. In both
+terminals, change to the root directory of the cloned repository before running
+Perftest. Then start the subscriber in the first terminal:
+
+```bash
+./bin/release/perftest_cs \
+  -sub \
+  -domain 81 \
+  -transport UDPv4 \
+  -noPrintIntervals
+```
+
+Then start the publisher in the second terminal:
+
+```bash
+./bin/release/perftest_cs \
+  -pub \
+  -domain 81 \
+  -transport UDPv4 \
+  -dataLen 1024 \
+  -numIter 100000 \
+  -noPrintIntervals
+```
+
+To clean generated output on Apple Silicon, run `./build.sh --clean`.
+
+### Optional Apple Silicon C++ reference build
+
+To run C++ interoperability tests on the validated Apple Silicon target, build
+the traditional C++ implementation with:
+
+```bash
+./build.sh --platform arm64Darwin23clang16.0 --cpp-build
+```
+
+On the validated optimized macOS build, a traditional C++ subscriber can
+receive all 100,000 samples, print a correct zero-loss summary, and complete the
+announcement exchange but remain alive during native entity teardown. The same
+behavior occurs with an unmodified C++ publisher and subscriber, isolating it
+from the C# wire protocol. C# processes exit cleanly in C#-only testing, and the
+C# subscriber exits cleanly when driven by the C++ publisher.
+
+## Linux setup and first run
+
+This section keeps the Linux path separate from both Windows and Apple Silicon.
+Replace `<architecture>` with the target architecture installed with Connext.
+
+### Configure the Linux environment
+
+```bash
+source /opt/rti_connext_dds-7.7.0/resource/scripts/rtisetenv_<architecture>.bash
+```
+
+Verify the tools and environment:
+
+```bash
+dotnet --version
+echo "$NDDSHOME"
+echo "$CONNEXTDDS_ARCH"
+"$NDDSHOME/bin/rtiddsgen" -version
+```
+
+The .NET SDK must be version 8, `CONNEXTDDS_ARCH` must identify the installed
+target libraries, and RTI Code Generator must report version 4.7.x.
+
+### Clone and build on Linux
+
+Choose the parent directory where the repository should be cloned and change to
+that directory. The example uses `~/work`; use your preferred location instead:
+
+```bash
+cd ~/work
+git clone git@github.com:herma48852/connext-7.7-perftest-csharp.git
+cd connext-7.7-perftest-csharp
+./build.sh --platform "$CONNEXTDDS_ARCH" --nddshome "$NDDSHOME" --cs-build
+```
+
+The build compiles the application under `srcCs/bin/Release/net8.0` and creates
+the convenience script `./bin/release/perftest_cs`. Verify the first run with:
+
+```bash
+./bin/release/perftest_cs -help
+```
+
+### Run a local Linux benchmark
+
+Keep the configured Connext environment loaded in two terminals. In both
+terminals, change to the root directory of the cloned repository before running
+Perftest. Then start the subscriber in the first terminal:
+
+```bash
+./bin/release/perftest_cs \
+  -sub \
+  -domain 81 \
+  -transport UDPv4 \
+  -noPrintIntervals
+```
+
+Then start the publisher in the second terminal:
+
+```bash
+./bin/release/perftest_cs \
+  -pub \
+  -domain 81 \
+  -transport UDPv4 \
+  -dataLen 1024 \
+  -numIter 100000 \
+  -noPrintIntervals
+```
+
+To clean generated output on Linux, run `./build.sh --clean`.
 
 ## Common benchmark scenarios
 
@@ -800,12 +918,6 @@ Build the traditional C++ reference implementation for the target platform:
 ./build.sh --platform <connext-architecture> --cpp-build
 ```
 
-For the validated Apple Silicon platform:
-
-```bash
-./build.sh --platform arm64Darwin23clang16.0 --cpp-build
-```
-
 ### C++ publisher to C# subscriber
 
 ```bash
@@ -1040,17 +1152,6 @@ If endpoints discover but do not match, verify that both sides agree on:
 - the QoS library/profile definitions.
 
 Use `-verbosity 2` or `-verbosity 3` to expose Connext compatibility errors.
-
-### Native C++ subscriber teardown on the validated macOS release build
-
-During reverse interoperability testing, the optimized traditional C++
-subscriber received all 100,000 samples, printed the correct zero-loss final
-summary, and completed the announcement exchange, but could remain alive during
-native entity teardown. The same behavior was reproduced with an unmodified
-C++ publisher and C++ subscriber, isolating it from the C# wire protocol.
-
-The C# subscriber and publisher exit cleanly in C#-only testing, and the C#
-subscriber exits cleanly when driven by the C++ publisher.
 
 ### Security file paths
 
