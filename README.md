@@ -120,6 +120,27 @@ The production build needs `NDDSHOME` and the Connext host tools. Prefer the
 environment script supplied by the installed Connext version because it also
 configures native library paths.
 
+#### Windows (primary)
+
+From a Command Prompt, run:
+
+```bat
+call "C:\Program Files\rti_connext_dds-7.7.0\resource\scripts\rtisetenv_x64Win64VS2017.bat"
+```
+
+Verify the environment:
+
+```bat
+echo %NDDSHOME%
+echo %CONNEXTDDS_ARCH%
+"%NDDSHOME%\bin\rtiddsgen.bat" -version
+```
+
+The expected architecture is `x64Win64VS2017`, and RTI Code Generator must
+report version 4.7.x.
+
+#### macOS and Linux
+
 On the validated Apple Silicon installation, run the script from **Bash**:
 
 ```bash
@@ -141,13 +162,7 @@ On Linux, select the script that matches the installed target architecture:
 source /opt/rti_connext_dds-7.7.0/resource/scripts/rtisetenv_<architecture>.bash
 ```
 
-On Windows, run the matching script from a Command Prompt:
-
-```bat
-call C:\path\to\rti_connext_dds-7.7.0\resource\scripts\rtisetenv_<architecture>.bat
-```
-
-Verify the environment:
+Verify the environment on macOS or Linux:
 
 ```bash
 echo "$NDDSHOME"
@@ -172,19 +187,8 @@ root. This matters for the default QoS and security file paths.
 
 ### Recommended repository build wrapper
 
-After configuring the Connext environment, build only the C# implementation:
-
-```bash
-./build.sh --nddshome "$NDDSHOME" --cs-build
-```
-
-The wrapper creates:
-
-```text
-./bin/release/perftest_cs
-```
-
-On Windows:
+After configuring the Connext environment, build only the C# implementation.
+On Windows, run:
 
 ```bat
 build.bat --nddshome "%NDDSHOME%" --cs-build
@@ -196,6 +200,18 @@ The Windows launcher is:
 bin\release\perftest_cs.bat
 ```
 
+On macOS or Linux, run:
+
+```bash
+./build.sh --nddshome "$NDDSHOME" --cs-build
+```
+
+The Unix launcher is:
+
+```text
+./bin/release/perftest_cs
+```
+
 ### Direct .NET build
 
 The project can also be restored and built directly:
@@ -205,32 +221,34 @@ dotnet restore srcCs/rtiperftest.csproj
 dotnet build srcCs/rtiperftest.csproj --configuration Release --no-restore
 ```
 
-The direct build produces a native launcher for the current platform and the
-managed application assembly:
+On Windows, the direct build produces a native launcher and the managed
+application assembly:
 
 ```text
-./srcCs/bin/Release/net8.0/perftest_cs
-srcCs/bin/Release/net8.0/perftest_cs.dll
+srcCs\bin\Release\net8.0\perftest_cs.exe
+srcCs\bin\Release\net8.0\perftest_cs.dll
 ```
 
 The native launcher is the simplest way to run a direct build:
 
-```bash
-./srcCs/bin/Release/net8.0/perftest_cs -help
+```bat
+srcCs\bin\Release\net8.0\perftest_cs.exe -help
 ```
 
 The equivalent framework-dependent command is:
 
-```bash
-dotnet srcCs/bin/Release/net8.0/perftest_cs.dll -help
+```bat
+dotnet srcCs\bin\Release\net8.0\perftest_cs.dll -help
 ```
 
 Or use `dotnet run`:
 
-```bash
-dotnet run --project srcCs/rtiperftest.csproj \
-  --configuration Release --no-build -- -help
+```bat
+dotnet run --project srcCs\rtiperftest.csproj --configuration Release --no-build -- -help
 ```
+
+On macOS or Linux, the native launcher is
+`./srcCs/bin/Release/net8.0/perftest_cs`.
 
 ### What happens during a production build
 
@@ -252,6 +270,12 @@ sources or produce duplicate-source warnings.
 
 Use the repository wrapper:
 
+```bat
+build.bat --clean
+```
+
+On macOS or Linux:
+
 ```bash
 ./build.sh --clean
 ```
@@ -269,23 +293,23 @@ domain `81` and explicitly select UDPv4 to provide a portable baseline.
 
 In terminal 1, start the subscriber:
 
-```bash
-./srcCs/bin/Release/net8.0/perftest_cs \
-  -sub \
-  -domain 81 \
-  -transport UDPv4 \
+```bat
+srcCs\bin\Release\net8.0\perftest_cs.exe ^
+  -sub ^
+  -domain 81 ^
+  -transport UDPv4 ^
   -noPrintIntervals
 ```
 
 In terminal 2, start the publisher:
 
-```bash
-./srcCs/bin/Release/net8.0/perftest_cs \
-  -pub \
-  -domain 81 \
-  -transport UDPv4 \
-  -dataLen 1024 \
-  -numIter 100000 \
+```bat
+srcCs\bin\Release\net8.0\perftest_cs.exe ^
+  -pub ^
+  -domain 81 ^
+  -transport UDPv4 ^
+  -dataLen 1024 ^
+  -numIter 100000 ^
   -noPrintIntervals
 ```
 
@@ -299,20 +323,21 @@ Expected behavior:
 6. The subscriber prints throughput and loss statistics.
 7. The finalization handshake completes and the C# applications exit.
 
-The commands above use the launcher produced by `dotnet build`. If the project
-was built through `build.sh --cs-build`, the optional
-`./bin/release/perftest_cs` wrapper accepts the same arguments. The managed DLL
-can also be run explicitly:
+The commands above use the Windows launcher produced by `dotnet build`. If the
+project was built through `build.bat --cs-build`, the
+`bin\release\perftest_cs.bat` wrapper accepts the same arguments. On macOS or
+Linux, use `./srcCs/bin/Release/net8.0/perftest_cs` or the
+`./bin/release/perftest_cs` wrapper. The managed DLL can also be run explicitly:
 
-```bash
-dotnet srcCs/bin/Release/net8.0/perftest_cs.dll -sub -domain 81 -transport UDPv4
-dotnet srcCs/bin/Release/net8.0/perftest_cs.dll -pub -domain 81 -transport UDPv4 -dataLen 1024 -numIter 100000
+```bat
+dotnet srcCs\bin\Release\net8.0\perftest_cs.dll -sub -domain 81 -transport UDPv4
+dotnet srcCs\bin\Release\net8.0\perftest_cs.dll -pub -domain 81 -transport UDPv4 -dataLen 1024 -numIter 100000
 ```
 
 Display the complete option list at any time:
 
-```bash
-./srcCs/bin/Release/net8.0/perftest_cs -help
+```bat
+srcCs\bin\Release\net8.0\perftest_cs.exe -help
 ```
 
 Both traditional single-dash spellings, such as `-domain`, and double-dash
