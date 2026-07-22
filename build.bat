@@ -167,7 +167,7 @@ if NOT "%1"=="" (
 				SET "JAR_EXE=%2\bin\jar"
 				SHIFT
 		) ELSE if "%1"=="--platform" (
-				SET architecture=%2
+				SET "architecture=%~2"
 				SHIFT
 		) ELSE if "%1"=="--openssl-home" (
 				SET "RTI_OPENSSLHOME=%2"
@@ -180,7 +180,7 @@ if NOT "%1"=="" (
 				)
 				SHIFT
 		) ELSE if "%1"=="--nddshome" (
-				SET "NDDSHOME=%2"
+				SET "NDDSHOME=%~2"
 				SHIFT
 		) ELSE if "%1"=="--rtimehome" (
 				SET "RTIMEHOME=%2"

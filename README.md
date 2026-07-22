@@ -98,9 +98,12 @@ Install the following before building the C# application:
    libraries for the machine that will run Perftest.
 2. **RTI Code Generator 4.7.x**, supplied with Connext 7.7.
 3. **.NET 8 SDK**.
-4. Network access to NuGet for the first package restore, unless the packages
+4. On Windows, **Visual Studio 2022** with the **Desktop development with C++**
+   workload.
+5. **Git** to clone the repository.
+6. Network access to NuGet for the first package restore, unless the packages
    are already cached.
-5. The appropriate RTI licenses for Connext and any optional security or
+7. The appropriate RTI licenses for Connext and any optional security or
    transport plugins used by the test.
 
 The project pins these managed dependencies:
@@ -110,7 +113,7 @@ The project pins these managed dependencies:
 
 Confirm the .NET SDK:
 
-```bash
+```bat
 dotnet --version
 ```
 
@@ -122,22 +125,32 @@ configures native library paths.
 
 #### Windows (primary)
 
-From a Command Prompt, run:
+From a Command Prompt, initialize the Visual Studio x64 developer environment,
+then load the RTI environment:
 
 ```bat
+call "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
 call "C:\Program Files\rti_connext_dds-7.7.0\resource\scripts\rtisetenv_x64Win64VS2017.bat"
 ```
 
-Verify the environment:
+Verify all required tools and variables:
 
 ```bat
+where msbuild
+where cl
+dotnet --version
 echo %NDDSHOME%
 echo %CONNEXTDDS_ARCH%
 "%NDDSHOME%\bin\rtiddsgen.bat" -version
 ```
 
-The expected architecture is `x64Win64VS2017`, and RTI Code Generator must
-report version 4.7.x.
+The expected architecture is `x64Win64VS2017`. Both `MSBuild` and `CL` must be
+found, the .NET SDK must be version 8, and RTI Code Generator must report
+version 4.7.x.
+
+If Visual Studio is installed in a different edition or location, run its x64
+Native Tools Command Prompt or substitute the corresponding `VsDevCmd.bat`
+path.
 
 #### macOS and Linux
 
@@ -173,9 +186,9 @@ The build rejects a Code Generator version that is not 4.7.x.
 
 ## Clone and configure
 
-Clone this repository and enter its root directory:
+On Windows, clone this repository and enter its root directory:
 
-```bash
+```bat
 git clone git@github.com:herma48852/connext-7.7-perftest-csharp.git
 cd connext-7.7-perftest-csharp
 ```
@@ -191,7 +204,7 @@ After configuring the Connext environment, build only the C# implementation.
 On Windows, run:
 
 ```bat
-build.bat --nddshome "%NDDSHOME%" --cs-build
+build.bat --platform "%CONNEXTDDS_ARCH%" --nddshome "%NDDSHOME%" --cs-build
 ```
 
 The Windows launcher is:
