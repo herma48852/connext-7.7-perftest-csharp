@@ -22,7 +22,6 @@ separately.
 - [How Perftest works](#how-perftest-works)
 - [C# feature scope](#c-feature-scope)
 - [Prerequisites](#prerequisites)
-- [Clean-room Windows installation](#clean-room-windows-installation)
 - [Clone and configure](#clone-and-configure)
 - [Build](#build)
 - [Quick start](#quick-start)
@@ -99,13 +98,9 @@ Install the following before building the C# application:
    libraries for the machine that will run Perftest.
 2. **RTI Code Generator 4.7.x**, supplied with Connext 7.7.
 3. **.NET 8 SDK**.
-4. On Windows, **Visual Studio 2022** or **Visual Studio 2022 Build Tools** with
-   the **Desktop development with C++** workload. RTI Code Generator uses
-   `CL.EXE` as its IDL preprocessor.
-5. **Git** to clone the repository.
-6. Network access to NuGet for the first package restore, unless the packages
+4. Network access to NuGet for the first package restore, unless the packages
    are already cached.
-7. The appropriate RTI licenses for Connext and any optional security or
+5. The appropriate RTI licenses for Connext and any optional security or
    transport plugins used by the test.
 
 The project pins these managed dependencies:
@@ -161,101 +156,6 @@ echo "$NDDSHOME"
 
 The build rejects a Code Generator version that is not 4.7.x.
 
-## Clean-room Windows installation
-
-The following procedure starts with a Windows x64 machine that has no checkout
-or cached NuGet packages. The example installation paths are the defaults; use
-the paths and architecture selected in the RTI installer if yours differ.
-
-### 1. Install the required software
-
-Install these components in this order:
-
-1. Git for Windows.
-2. Visual Studio 2022 Community or Visual Studio 2022 Build Tools. In the
-   installer, select **Desktop development with C++** and include the MSVC x64
-   compiler and a Windows SDK.
-3. The .NET 8 SDK. Installing only the .NET runtime is not sufficient.
-4. RTI Connext DDS Professional 7.7.0, including Host Development, RTI Code
-   Generator 4.7.x, and the `x64Win64VS2017` target libraries.
-5. An RTI license that is valid for the installed host and target components.
-
-RTI distributes Connext and its license separately from this repository, so
-obtain both through the RTI download and licensing channels available to your
-organization.
-
-### 2. Open and verify the build environment
-
-Open **x64 Native Tools Command Prompt for VS 2022**. Do not use an ordinary
-Command Prompt for the first build: `rtiddsgen` needs the `CL.EXE` environment
-provided by the Visual Studio developer prompt.
-
-Load the RTI environment in that prompt:
-
-```bat
-call "C:\Program Files\rti_connext_dds-7.7.0\resource\scripts\rtisetenv_x64Win64VS2017.bat"
-```
-
-Verify every tool before cloning:
-
-```bat
-where git
-where cl
-dotnet --version
-echo %NDDSHOME%
-echo %CONNEXTDDS_ARCH%
-"%NDDSHOME%\bin\rtiddsgen.bat" -version
-```
-
-The checks must find `CL.EXE`, report a usable .NET 8 SDK, set
-`CONNEXTDDS_ARCH` to `x64Win64VS2017`, and report RTI Code Generator 4.7.x.
-
-### 3. Clone and build from an empty directory
-
-Choose a working directory, then restore and build the release configuration:
-
-```bat
-cd /d C:\work
-git clone https://github.com/herma48852/connext-7.7-perftest-csharp.git
-cd connext-7.7-perftest-csharp
-dotnet restore srcCs\rtiperftest.csproj
-dotnet build srcCs\rtiperftest.csproj --configuration Release --no-restore
-```
-
-The final output should contain `Build succeeded`, with zero warnings and zero
-errors. Confirm that the program starts and can load the native Connext
-libraries:
-
-```bat
-srcCs\bin\Release\net8.0\perftest_cs.exe -help
-```
-
-The output must show the Perftest and RTI Connext DDS 7.7 versions followed by
-the command-line option list.
-
-### 4. Run a local publisher/subscriber smoke test
-
-Keep the RTI environment loaded in every runtime terminal. Open two Command
-Prompts and run the `rtisetenv_x64Win64VS2017.bat` command from step 2 in each
-one. Change both terminals to the repository root.
-
-In terminal 1, start the subscriber first:
-
-```bat
-srcCs\bin\Release\net8.0\perftest_cs.exe -sub -domain 81 -transport UDPv4 -noPrintIntervals
-```
-
-In terminal 2, start the publisher:
-
-```bat
-srcCs\bin\Release\net8.0\perftest_cs.exe -pub -domain 81 -transport UDPv4 -dataLen 1024 -numIter 100000 -noPrintIntervals
-```
-
-Both processes should discover each other, exchange 100,000 samples, print
-their final latency or throughput summary, and exit cleanly. If Windows asks
-for network access, allow the applications on the network profile used for the
-test. Use the same unused DDS domain on both processes.
-
 ## Clone and configure
 
 Clone this repository and enter its root directory:
@@ -287,11 +187,8 @@ The wrapper creates:
 On Windows:
 
 ```bat
-build.bat --nddshome "%NDDSHOME%" --platform "%CONNEXTDDS_ARCH%" --cs-build
+build.bat --nddshome "%NDDSHOME%" --cs-build
 ```
-
-Run the Windows wrapper from an x64 Visual Studio developer prompt after
-loading the RTI environment as described above.
 
 The Windows launcher is:
 
@@ -904,22 +801,6 @@ This fixture compiles all handwritten C# sources against `Rti.ConnextDds`
 
 It is a compile and behavior fixture, not a runnable Perftest executable.
 
-### UDPv4 latency regression suite
-
-This integration test starts a real C# subscriber and publisher on a randomized
-DDS domain, runs 250 synchronous ping-pong samples over UDPv4, and validates
-the resulting JSON latency statistics and zero-loss subscriber summary:
-
-```bash
-dotnet test tests/Perftest.Udpv4Latency.Tests/Perftest.Udpv4Latency.Tests.csproj \
-  --configuration Release
-```
-
-The test builds the production project, so it requires the same Connext 7.7,
-Code Generator 4.7.x, license, native compiler, and RTI environment described
-in the build instructions. It has a 60-second process timeout and is marked
-with the `ConnextIntegration` trait.
-
 ### Production build validation
 
 ```bash
@@ -933,8 +814,6 @@ The completed validation on Connext Professional 7.7.0 included:
 - immediate repeat build: **0 warnings, 0 errors**;
 - CLI tests: **12 passed**;
 - Connext API/core tests: **4 passed**;
-- UDPv4 latency regression: **1 passed**, with 250 measured ping-pong samples
-  and zero loss;
 - C# publisher to C# subscriber: **100,000 samples, zero loss, clean exits**;
 - C++ publisher to C# subscriber: **100,000 samples, zero loss, clean exits**;
   and
@@ -1142,8 +1021,7 @@ documentation plus the Connext 7.7 C# additions:
 ├── srcDoc                          Full documentation source
 └── tests
     ├── Perftest.Cli.Tests
-    ├── Perftest.ConnextApi.Compile
-    └── Perftest.Udpv4Latency.Tests
+    └── Perftest.ConnextApi.Compile
 ```
 
 ## License and attribution
