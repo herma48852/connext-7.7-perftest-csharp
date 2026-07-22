@@ -85,6 +85,56 @@ namespace PerformanceTest.Tests
         }
 
         [Fact]
+        public void TwoMachineMulticastCommandsAreAccepted()
+        {
+            const string multicastAddresses =
+                "239.255.2.1,239.255.2.2,239.255.2.3";
+
+            CliParseOutcome throughput = CliParser.Parse(new[]
+            {
+                "-pub", "-domain", "101", "-transport", "UDPv4",
+                "-nic", "192.168.2.10", "-peer", "192.168.2.20",
+                "-multicast", "-multicastAddr", multicastAddresses,
+                "-dataLen", "1024", "-batchSize", "8192",
+                "-executionTime", "60", "-noPrintIntervals", "-cpu",
+                "-outputFormat", "json"
+            });
+
+            Assert.True(throughput.ShouldRun);
+            Assert.True(throughput.Parameters.Pub);
+            Assert.Equal(101, throughput.Parameters.Domain);
+            Assert.Equal("UDPv4", throughput.Parameters.Transport);
+            Assert.Equal("192.168.2.10", throughput.Parameters.AllowInterfaces);
+            Assert.Equal(new[] { "192.168.2.20" }, throughput.Parameters.Peers);
+            Assert.True(throughput.Parameters.Multicast);
+            Assert.Equal(multicastAddresses, throughput.Parameters.MulticastAddr);
+            Assert.Equal(1024UL, throughput.Parameters.DataLen);
+            Assert.Equal(8192, throughput.Parameters.BatchSize);
+            Assert.Equal(60UL, throughput.Parameters.ExecutionTime);
+            Assert.True(throughput.Parameters.NoPrintIntervals);
+            Assert.True(throughput.Parameters.Cpu);
+            Assert.Equal("json", throughput.Parameters.OutputFormat);
+
+            CliParseOutcome latency = CliParser.Parse(new[]
+            {
+                "-pub", "-domain", "103", "-transport", "UDPv4",
+                "-nic", "192.168.2.10", "-peer", "192.168.2.20",
+                "-multicast", "-multicastAddr", multicastAddresses,
+                "-latencyTest", "-batchSize", "0", "-dataLen", "64",
+                "-numIter", "10000", "-noPrintIntervals", "-cpu",
+                "-outputFormat", "json"
+            });
+
+            Assert.True(latency.ShouldRun);
+            Assert.True(latency.Parameters.LatencyTest);
+            Assert.Equal(1U, latency.Parameters.LatencyCount);
+            Assert.Equal(0, latency.Parameters.BatchSize);
+            Assert.Equal(64UL, latency.Parameters.DataLen);
+            Assert.Equal(10_000UL, latency.Parameters.NumIter);
+            Assert.Equal(multicastAddresses, latency.Parameters.MulticastAddr);
+        }
+
+        [Fact]
         public void InvalidNumericInputReturnsUsageError()
         {
             CliParseOutcome outcome = CliParser.Parse(new[] { "-domain", "not-a-number" });

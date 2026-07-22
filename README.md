@@ -963,10 +963,18 @@ Build the traditional C++ reference implementation for the target platform:
 ```
 
 Both directions were validated with 100,000 reliable 1,024-byte samples and
-zero detected loss. See the native C++ teardown note under
-[Known limitations and troubleshooting](#known-limitations-and-troubleshooting).
+zero detected loss. The native C++ teardown note is in
+[Apple Silicon setup and first run](#optional-apple-silicon-c-reference-build).
 
 ## Tests and validation
+
+### Two-machine multicast performance and latency
+
+The manual [Windows 11 to Apple Silicon multicast test](tests/Multicast.WindowsMac/README.md)
+measures 60-second multicast throughput and 10,000-sample synchronous latency in
+both directions over a dedicated gigabit switch. It pins each endpoint to its
+test interface, uses explicit multicast groups, and defines baseline acceptance
+criteria.
 
 ### Command-line regression suite
 
