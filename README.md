@@ -673,6 +673,11 @@ Enable multicast on both sides:
 Use `-multicastAddr` to supply one address for all topics or a comma-separated
 `throughput,latency,announcement` address set.
 
+For a manually provisioned, fixed-NIC multicast benchmark, add
+`-disableInterfaceTracking` on both endpoints. This keeps unrelated interface
+events, such as Wi-Fi changes, from modifying locators during the run. Without
+the flag, interface mobility remains enabled.
+
 ### Multiple machines without multicast discovery
 
 On a subscriber whose local interface is `192.168.1.154`, with the publisher
@@ -825,7 +830,9 @@ overrides include:
 - `-peer <address>` for an initial peer; repeat the option for multiple peers;
 - `-multicast` or `-noMulticast`;
 - `-multicastAddr <address-set>`; and
-- `-nic` or `-allowInterfaces` to constrain network interfaces.
+- `-nic` or `-allowInterfaces` to constrain network interfaces; and
+- `-disableInterfaceTracking` to keep a manually provisioned UDPv4 interface
+  fixed for the duration of a benchmark.
 
 If processes wait forever at `Waiting to discover`, verify the domain,
 transport, interface, peers, multicast routing, and firewall rules on both

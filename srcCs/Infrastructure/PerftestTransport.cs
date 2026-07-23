@@ -153,6 +153,8 @@ namespace PerformanceTest
         private const ulong DefaultMessageSizeMax = 65536;
         public static readonly ulong MessageSizeMaxNotSet = long.MaxValue;
         public static readonly ulong MessageOverheadBytes = 567;
+        private const string Udpv4DisableInterfaceTrackingProperty =
+            "dds.transport.UDPv4.builtin.disable_interface_tracking";
         // This number is calculated in C++ as:
         // - COMMEND_WRITER_MAX_RTPS_OVERHEAD <- Size of the overhead for RTPS in the
         //                                       worst case
@@ -567,6 +569,26 @@ namespace PerformanceTest
 
             qos = qos.WithProperty(policy =>
                 policy.Add(propertyName, transportVerbosity));
+        }
+
+        private bool ConfigureInterfaceTracking(ref DomainParticipantQos qos)
+        {
+            if (!parameters.DisableInterfaceTracking)
+            {
+                return true;
+            }
+
+            if (TransportConfig.Kind != Transport.Udpv4)
+            {
+                Console.Error.WriteLine(ClassLoggingString
+                    + " -disableInterfaceTracking requires -transport UDPv4.");
+                return false;
+            }
+
+            qos = qos.WithProperty(policy =>
+                policy.Add(Udpv4DisableInterfaceTrackingProperty, "true"));
+            LoggingString += "\tInterface Tracking: Disabled\n";
+            return true;
         }
 
         private void ConfigureSecurityFiles(ref DomainParticipantQos qos)
@@ -1045,6 +1067,11 @@ namespace PerformanceTest
                     qos = qos.WithTransportBuiltin(policy =>
                         policy.Mask = TransportBuiltinMask.Shmem);
                     break;
+            }
+
+            if (!ConfigureInterfaceTracking(ref qos))
+            {
+                return false;
             }
 
             /*

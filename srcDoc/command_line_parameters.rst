@@ -241,6 +241,19 @@ Test Parameters for Publishing and Subscribing Applications
 
    **Default:** Do not use multicast
 
+-  ``-disableInterfaceTracking``
+
+   Disable runtime network-interface change detection for the built-in UDPv4
+   transport. Use this option with a manually provisioned ``-nic`` address when
+   the benchmark must remain on that interface while other interfaces, such as
+   Wi-Fi, remain enabled.
+
+   This option prevents IP mobility during the process lifetime. If the selected
+   interface changes address or becomes unavailable, restart the test after the
+   interface is restored.
+
+   **Default:** Interface tracking is enabled
+
 -  ``-multicastAddr <address>``
 
    Enable the use of multicast. In addition, the *Datawriter* heartbeats

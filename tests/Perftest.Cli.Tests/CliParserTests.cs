@@ -29,6 +29,7 @@ namespace PerformanceTest.Tests
             Assert.Equal(8_192, outcome.Parameters.BatchSize);
             Assert.Equal(-1, outcome.Parameters.WriteInstance);
             Assert.Equal(1, outcome.Parameters.Verbosity);
+            Assert.False(outcome.Parameters.DisableInterfaceTracking);
         }
 
         [Fact]
@@ -94,6 +95,7 @@ namespace PerformanceTest.Tests
             {
                 "-pub", "-domain", "101", "-transport", "UDPv4",
                 "-nic", "192.168.2.10", "-peer", "192.168.2.20",
+                "-disableInterfaceTracking",
                 "-multicast", "-multicastAddr", multicastAddresses,
                 "-dataLen", "1024", "-batchSize", "8192",
                 "-executionTime", "60", "-noPrintIntervals", "-cpu",
@@ -106,6 +108,7 @@ namespace PerformanceTest.Tests
             Assert.Equal("UDPv4", throughput.Parameters.Transport);
             Assert.Equal("192.168.2.10", throughput.Parameters.AllowInterfaces);
             Assert.Equal(new[] { "192.168.2.20" }, throughput.Parameters.Peers);
+            Assert.True(throughput.Parameters.DisableInterfaceTracking);
             Assert.True(throughput.Parameters.Multicast);
             Assert.Equal(multicastAddresses, throughput.Parameters.MulticastAddr);
             Assert.Equal(1024UL, throughput.Parameters.DataLen);
@@ -119,6 +122,7 @@ namespace PerformanceTest.Tests
             {
                 "-pub", "-domain", "103", "-transport", "UDPv4",
                 "-nic", "192.168.2.10", "-peer", "192.168.2.20",
+                "-disableInterfaceTracking",
                 "-multicast", "-multicastAddr", multicastAddresses,
                 "-latencyTest", "-batchSize", "0", "-dataLen", "64",
                 "-numIter", "10000", "-noPrintIntervals", "-cpu",
@@ -131,6 +135,7 @@ namespace PerformanceTest.Tests
             Assert.Equal(0, latency.Parameters.BatchSize);
             Assert.Equal(64UL, latency.Parameters.DataLen);
             Assert.Equal(10_000UL, latency.Parameters.NumIter);
+            Assert.True(latency.Parameters.DisableInterfaceTracking);
             Assert.Equal(multicastAddresses, latency.Parameters.MulticastAddr);
         }
 

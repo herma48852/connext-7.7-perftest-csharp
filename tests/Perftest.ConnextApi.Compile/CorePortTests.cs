@@ -68,6 +68,27 @@ namespace PerformanceTest.Tests
         }
 
         [Fact]
+        public void DisableInterfaceTrackingReachesUdpv4ParticipantQos()
+        {
+            CliParseOutcome outcome = CliParser.Parse(new[]
+            {
+                "-sub", "-transport", "UDPv4", "-disableInterfaceTracking"
+            });
+            var transport = new PerftestTransport();
+            var qos = Rti.Dds.Domain.DomainParticipantQos.Default;
+
+            Assert.True(transport.ParseTransportOptions(outcome.Parameters));
+            Assert.True(transport.ConfigureTransport(ref qos));
+            Assert.True(qos.Property.Value.TryGetValue(
+                "dds.transport.UDPv4.builtin.disable_interface_tracking",
+                out var property));
+            Assert.Equal("true", property.Value);
+            Assert.Contains(
+                "Interface Tracking: Disabled",
+                transport.PrintTransportConfigurationSummary());
+        }
+
+        [Fact]
         public void MonotonicClockAdvancesWithoutOverflowing()
         {
             ulong start = Perftest.GetTimeUsec();

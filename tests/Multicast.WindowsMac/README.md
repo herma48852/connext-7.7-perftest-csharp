@@ -11,10 +11,16 @@ Ethernet switch.
 | Laptop | Windows 11 | `192.168.2.10/24` |
 | Mac mini | macOS / Apple Silicon | `192.168.2.20/24` |
 
-Both interfaces must connect to the same gigabit switch. The Windows Wi-Fi
-address `192.168.1.156` is not part of this test. The `-nic` argument in every
-command pins Connext to the dedicated Ethernet interface even when Wi-Fi remains
-enabled.
+Both interfaces must connect to the same gigabit switch. Wi-Fi addresses are
+not part of this test. Every command pins Connext to the dedicated Ethernet
+interface with `-nic` and disables runtime interface-change tracking with
+`-disableInterfaceTracking`. This is the default and recommended way to run
+this manually provisioned, fixed-interface test while leaving Wi-Fi enabled.
+
+> **Warning:** Do not remove `-disableInterfaceTracking` from these commands
+> while Wi-Fi is enabled. If the flag is removed, disable Wi-Fi on both endpoints
+> before running the test; otherwise Wi-Fi interface events can trigger Connext
+> locator-update errors and interrupt multicast communication.
 
 The test uses unicast initial peers for deterministic discovery and these
 explicit multicast groups for benchmark traffic:
@@ -79,6 +85,7 @@ Start the Mac subscriber first:
 ./bin/release/perftest_cs \
   -sub -domain 101 -transport UDPv4 \
   -nic 192.168.2.20 -peer 192.168.2.10 \
+  -disableInterfaceTracking \
   -multicast -multicastAddr 239.255.2.1,239.255.2.2,239.255.2.3 \
   -noPrintIntervals -cpu -outputFormat json
 ```
@@ -89,6 +96,7 @@ Then start the Windows publisher:
 bin\release\perftest_cs.bat ^
   -pub -domain 101 -transport UDPv4 ^
   -nic 192.168.2.10 -peer 192.168.2.20 ^
+  -disableInterfaceTracking ^
   -multicast -multicastAddr "239.255.2.1,239.255.2.2,239.255.2.3" ^
   -dataLen 1024 -batchSize 8192 -executionTime 60 ^
   -noPrintIntervals -cpu -outputFormat json
@@ -105,6 +113,7 @@ Start the Windows subscriber first:
 bin\release\perftest_cs.bat ^
   -sub -domain 102 -transport UDPv4 ^
   -nic 192.168.2.10 -peer 192.168.2.20 ^
+  -disableInterfaceTracking ^
   -multicast -multicastAddr "239.255.2.1,239.255.2.2,239.255.2.3" ^
   -noPrintIntervals -cpu -outputFormat json
 ```
@@ -115,6 +124,7 @@ Then start the Mac publisher:
 ./bin/release/perftest_cs \
   -pub -domain 102 -transport UDPv4 \
   -nic 192.168.2.20 -peer 192.168.2.10 \
+  -disableInterfaceTracking \
   -multicast -multicastAddr 239.255.2.1,239.255.2.2,239.255.2.3 \
   -dataLen 1024 -batchSize 8192 -executionTime 60 \
   -noPrintIntervals -cpu -outputFormat json
@@ -130,6 +140,7 @@ Latency is reported by the publisher. Start the Mac subscriber first:
 ./bin/release/perftest_cs \
   -sub -domain 103 -transport UDPv4 \
   -nic 192.168.2.20 -peer 192.168.2.10 \
+  -disableInterfaceTracking \
   -multicast -multicastAddr 239.255.2.1,239.255.2.2,239.255.2.3 \
   -latencyTest -batchSize 0 -noPrintIntervals -cpu -outputFormat json
 ```
@@ -140,6 +151,7 @@ Then start the Windows publisher:
 bin\release\perftest_cs.bat ^
   -pub -domain 103 -transport UDPv4 ^
   -nic 192.168.2.10 -peer 192.168.2.20 ^
+  -disableInterfaceTracking ^
   -multicast -multicastAddr "239.255.2.1,239.255.2.2,239.255.2.3" ^
   -latencyTest -batchSize 0 -dataLen 64 -numIter 10000 ^
   -noPrintIntervals -cpu -outputFormat json
@@ -156,6 +168,7 @@ Start the Windows subscriber first:
 bin\release\perftest_cs.bat ^
   -sub -domain 104 -transport UDPv4 ^
   -nic 192.168.2.10 -peer 192.168.2.20 ^
+  -disableInterfaceTracking ^
   -multicast -multicastAddr "239.255.2.1,239.255.2.2,239.255.2.3" ^
   -latencyTest -batchSize 0 -noPrintIntervals -cpu -outputFormat json
 ```
@@ -166,6 +179,7 @@ Then start the Mac publisher:
 ./bin/release/perftest_cs \
   -pub -domain 104 -transport UDPv4 \
   -nic 192.168.2.20 -peer 192.168.2.10 \
+  -disableInterfaceTracking \
   -multicast -multicastAddr 239.255.2.1,239.255.2.2,239.255.2.3 \
   -latencyTest -batchSize 0 -dataLen 64 -numIter 10000 \
   -noPrintIntervals -cpu -outputFormat json
@@ -178,7 +192,8 @@ direction.
 
 The initial baseline passes when:
 
-1. every endpoint reports the intended local NIC and multicast enabled;
+1. every endpoint reports the intended local NIC, multicast enabled, and
+   `Interface Tracking: Disabled`;
 2. discovery completes without waiting indefinitely;
 3. both 60-second throughput runs finish and report their final statistics;
 4. reliable throughput reports zero lost samples;

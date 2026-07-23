@@ -220,6 +220,7 @@ namespace PerformanceTest
             set => configureTransportWanId = value;
         }
         public bool ConfigureTransportSecureWan { get; set; }
+        public bool DisableInterfaceTracking { get; set; }
         public bool Multicast { get; set; }
         public string MulticastAddr
         {

@@ -211,6 +211,10 @@ namespace PerformanceTest
             Add(root, bindings, "--allowInterfaces", (string)null,
                 (p, v, set) => { if (set) p.AllowInterfaces = v; p.AllowInterfacesSet |= set; },
                 "Allowed receive interfaces.", "-allowInterfaces");
+            Add(root, bindings, "--disableInterfaceTracking", false,
+                (p, v, _) => p.DisableInterfaceTracking = v,
+                "Disable runtime interface-change tracking for built-in UDPv4.",
+                "-disableInterfaceTracking");
             Add(root, bindings, "--configureTransportVerbosity", (string)null,
                 (p, v, set) => { p.ConfigureTransportVerbosity = v; p.ConfigureTransportVerbositySet = set; },
                 "Transport plugin verbosity.", "-configureTransportVerbosity");
