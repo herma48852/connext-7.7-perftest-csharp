@@ -18,5 +18,8 @@
 
     <Compile Include="../../srcCs/Infrastructure/CliParser.cs" Link="Infrastructure/CliParser.cs" />
     <Compile Include="../../srcCs/Infrastructure/Parameters.cs" Link="Infrastructure/Parameters.cs" />
+    <None Include="../../resource/scripts/cs_execution_scripts/perftest_cs.bat"
+          Link="perftest_cs.bat"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

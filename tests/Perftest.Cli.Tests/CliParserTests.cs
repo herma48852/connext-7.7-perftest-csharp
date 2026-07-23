@@ -135,6 +135,64 @@ namespace PerformanceTest.Tests
         }
 
         [Fact]
+        public void WindowsLauncherPreservesCommaDelimitedArguments()
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return;
+            }
+
+            const string multicastAddresses =
+                "239.255.2.1,239.255.2.2,239.255.2.3";
+            string templatePath = Path.Combine(
+                AppContext.BaseDirectory,
+                "perftest_cs.bat");
+            string harnessPath = Path.Combine(
+                Path.GetTempPath(),
+                $"perftest_cs_{Guid.NewGuid():N}.bat");
+
+            try
+            {
+                File.WriteAllText(
+                    harnessPath,
+                    File.ReadAllText(templatePath)
+                        + Environment.NewLine
+                        + "echo [%args%]"
+                        + Environment.NewLine);
+
+                var startInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = Environment.GetEnvironmentVariable("ComSpec"),
+                    Arguments = $"/d /c call \"{harnessPath}\" "
+                        + $"-multicastAddr {multicastAddresses} -help",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false
+                };
+
+                using System.Diagnostics.Process process =
+                    System.Diagnostics.Process.Start(startInfo);
+                string output = process.StandardOutput.ReadToEnd();
+                string error = process.StandardError.ReadToEnd();
+                process.WaitForExit();
+
+                Assert.Equal(0, process.ExitCode);
+                Assert.Contains(multicastAddresses, output);
+                Assert.DoesNotContain(
+                    "239.255.2.1 239.255.2.2 239.255.2.3",
+                    output);
+                Assert.True(string.IsNullOrEmpty(error), error);
+            }
+            finally
+            {
+                if (File.Exists(harnessPath))
+                {
+                    File.Delete(harnessPath);
+                }
+            }
+        }
+
+        [Fact]
         public void InvalidNumericInputReturnsUsageError()
         {
             CliParseOutcome outcome = CliParser.Parse(new[] { "-domain", "not-a-number" });

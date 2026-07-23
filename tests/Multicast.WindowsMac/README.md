@@ -89,7 +89,7 @@ Then start the Windows publisher:
 bin\release\perftest_cs.bat ^
   -pub -domain 101 -transport UDPv4 ^
   -nic 192.168.2.10 -peer 192.168.2.20 ^
-  -multicast -multicastAddr 239.255.2.1,239.255.2.2,239.255.2.3 ^
+  -multicast -multicastAddr "239.255.2.1,239.255.2.2,239.255.2.3" ^
   -dataLen 1024 -batchSize 8192 -executionTime 60 ^
   -noPrintIntervals -cpu -outputFormat json
 ```
@@ -105,7 +105,7 @@ Start the Windows subscriber first:
 bin\release\perftest_cs.bat ^
   -sub -domain 102 -transport UDPv4 ^
   -nic 192.168.2.10 -peer 192.168.2.20 ^
-  -multicast -multicastAddr 239.255.2.1,239.255.2.2,239.255.2.3 ^
+  -multicast -multicastAddr "239.255.2.1,239.255.2.2,239.255.2.3" ^
   -noPrintIntervals -cpu -outputFormat json
 ```
 
@@ -140,7 +140,7 @@ Then start the Windows publisher:
 bin\release\perftest_cs.bat ^
   -pub -domain 103 -transport UDPv4 ^
   -nic 192.168.2.10 -peer 192.168.2.20 ^
-  -multicast -multicastAddr 239.255.2.1,239.255.2.2,239.255.2.3 ^
+  -multicast -multicastAddr "239.255.2.1,239.255.2.2,239.255.2.3" ^
   -latencyTest -batchSize 0 -dataLen 64 -numIter 10000 ^
   -noPrintIntervals -cpu -outputFormat json
 ```
@@ -156,7 +156,7 @@ Start the Windows subscriber first:
 bin\release\perftest_cs.bat ^
   -sub -domain 104 -transport UDPv4 ^
   -nic 192.168.2.10 -peer 192.168.2.20 ^
-  -multicast -multicastAddr 239.255.2.1,239.255.2.2,239.255.2.3 ^
+  -multicast -multicastAddr "239.255.2.1,239.255.2.2,239.255.2.3" ^
   -latencyTest -batchSize 0 -noPrintIntervals -cpu -outputFormat json
 ```
 
