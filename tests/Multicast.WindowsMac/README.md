@@ -2,7 +2,8 @@
 
 This manual test measures multicast throughput and synchronous ping-pong
 latency between the Windows 11 laptop and Mac mini over the dedicated gigabit
-Ethernet switch.
+Ethernet switch. The throughput runs use 32 KiB (32,768-byte) samples with
+batching explicitly disabled.
 
 ## Fixed test topology
 
@@ -87,6 +88,7 @@ Start the Mac subscriber first:
   -nic 192.168.2.20 -peer 192.168.2.10 \
   -disableInterfaceTracking \
   -multicast -multicastAddr 239.255.2.1,239.255.2.2,239.255.2.3 \
+  -batchSize 0 \
   -noPrintIntervals -cpu -outputFormat json
 ```
 
@@ -98,7 +100,7 @@ bin\release\perftest_cs.bat ^
   -nic 192.168.2.10 -peer 192.168.2.20 ^
   -disableInterfaceTracking ^
   -multicast -multicastAddr "239.255.2.1,239.255.2.2,239.255.2.3" ^
-  -dataLen 1024 -batchSize 8192 -executionTime 60 ^
+  -dataLen 32768 -batchSize 0 -executionTime 60 ^
   -noPrintIntervals -cpu -outputFormat json
 ```
 
@@ -115,6 +117,7 @@ bin\release\perftest_cs.bat ^
   -nic 192.168.2.10 -peer 192.168.2.20 ^
   -disableInterfaceTracking ^
   -multicast -multicastAddr "239.255.2.1,239.255.2.2,239.255.2.3" ^
+  -batchSize 0 ^
   -noPrintIntervals -cpu -outputFormat json
 ```
 
@@ -126,7 +129,7 @@ Then start the Mac publisher:
   -nic 192.168.2.20 -peer 192.168.2.10 \
   -disableInterfaceTracking \
   -multicast -multicastAddr 239.255.2.1,239.255.2.2,239.255.2.3 \
-  -dataLen 1024 -batchSize 8192 -executionTime 60 \
+  -dataLen 32768 -batchSize 0 -executionTime 60 \
   -noPrintIntervals -cpu -outputFormat json
 ```
 
@@ -195,7 +198,8 @@ The initial baseline passes when:
 1. every endpoint reports the intended local NIC, multicast enabled, and
    `Interface Tracking: Disabled`;
 2. discovery completes without waiting indefinitely;
-3. both 60-second throughput runs finish and report their final statistics;
+3. both 60-second, 32 KiB, unbatched throughput runs finish and report their
+   final statistics;
 4. reliable throughput reports zero lost samples;
 5. both 10,000-sample latency runs finish and report nonzero latency
    distributions; and

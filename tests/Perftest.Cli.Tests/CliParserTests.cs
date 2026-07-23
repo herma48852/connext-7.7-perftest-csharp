@@ -97,7 +97,7 @@ namespace PerformanceTest.Tests
                 "-nic", "192.168.2.10", "-peer", "192.168.2.20",
                 "-disableInterfaceTracking",
                 "-multicast", "-multicastAddr", multicastAddresses,
-                "-dataLen", "1024", "-batchSize", "8192",
+                "-dataLen", "32768", "-batchSize", "0",
                 "-executionTime", "60", "-noPrintIntervals", "-cpu",
                 "-outputFormat", "json"
             });
@@ -111,8 +111,8 @@ namespace PerformanceTest.Tests
             Assert.True(throughput.Parameters.DisableInterfaceTracking);
             Assert.True(throughput.Parameters.Multicast);
             Assert.Equal(multicastAddresses, throughput.Parameters.MulticastAddr);
-            Assert.Equal(1024UL, throughput.Parameters.DataLen);
-            Assert.Equal(8192, throughput.Parameters.BatchSize);
+            Assert.Equal(32_768UL, throughput.Parameters.DataLen);
+            Assert.Equal(0, throughput.Parameters.BatchSize);
             Assert.Equal(60UL, throughput.Parameters.ExecutionTime);
             Assert.True(throughput.Parameters.NoPrintIntervals);
             Assert.True(throughput.Parameters.Cpu);

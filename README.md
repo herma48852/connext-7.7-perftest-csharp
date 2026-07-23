@@ -978,10 +978,10 @@ zero detected loss. The native C++ teardown note is in
 ### Two-machine multicast performance and latency
 
 The manual [Windows 11 to Apple Silicon multicast test](tests/Multicast.WindowsMac/README.md)
-measures 60-second multicast throughput and 10,000-sample synchronous latency in
-both directions over a dedicated gigabit switch. It pins each endpoint to its
-test interface, uses explicit multicast groups, and defines baseline acceptance
-criteria.
+measures unbatched 32 KiB multicast throughput for 60 seconds and 10,000-sample
+synchronous latency in both directions over a dedicated gigabit switch. It pins
+each endpoint to its test interface, uses explicit multicast groups, and defines
+baseline acceptance criteria.
 
 ### Command-line regression suite
 
